@@ -1,0 +1,36 @@
+Signed-off-by: lean <chenlin@fnnas.com>
+
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -20,6 +20,7 @@
+ #include <linux/string.h>
+ #include <linux/spi/spi.h>
+ #include <linux/spi/spi-mem.h>
++#include <linux/mtd/mtk_bmt.h>
+ 
+ int spinand_read_reg_op(struct spinand_device *spinand, u8 reg, u8 *val)
+ {
+@@ -1748,6 +1749,7 @@
+ 	if (ret)
+ 		return ret;
+ 
++	mtk_bmt_attach(mtd);
+ 	ret = mtd_device_register(mtd, NULL, 0);
+ 	if (ret)
+ 		goto err_spinand_cleanup;
+@@ -1755,6 +1757,7 @@
+ 	return 0;
+ 
+ err_spinand_cleanup:
++	mtk_bmt_detach(mtd);
+ 	spinand_cleanup(spinand);
+ 
+ 	return ret;
+@@ -1773,6 +1776,7 @@
+ 	if (ret)
+ 		return ret;
+ 
++	mtk_bmt_detach(mtd);
+ 	spinand_cleanup(spinand);
+ 
+ 	return 0;

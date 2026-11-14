@@ -1,11 +1,14 @@
 [binaries]
 c = [@CC@]
+c_ld = [@LD@]
 cpp = [@CXX@]
+cpp_ld = [@LD@]
 ar = '@AR@'
 strip = '@STRIP@'
 nm = '@NM@'
-pkgconfig = '@PKGCONFIG@'
+pkg-config = '@PKGCONFIG@'
 cmake = '@CMAKE@'
+python = '@PYTHON@'
 
 [built-in options]
 c_args = [@CFLAGS@]

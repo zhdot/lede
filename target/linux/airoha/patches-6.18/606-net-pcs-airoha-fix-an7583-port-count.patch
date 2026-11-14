@@ -1,0 +1,49 @@
+From: Robert Marko <robert.marko@sartura.hr>
+Date: Thu, 16 Jul 2026 14:00:00 +0200
+Subject: [PATCH] net: pcs: airoha: fix AN7583 PCS port count
+
+The AN7583 PCS match data does not initialize num_port. This leaves it at
+zero, so probe allocates a zero-sized ports array and a later PCS lookup
+returns a pointer derived from NULL.
+
+Set the number of ports for each AN7583 PCS instance. Also reject
+out-of-range PCS indices defensively.
+
+Signed-off-by: Robert Marko <robert.marko@sartura.hr>
+Signed-off-by: lean <chenlin@fnnas.com>
+---
+
+--- a/drivers/net/pcs/airoha/pcs-airoha-common.c
++++ b/drivers/net/pcs/airoha/pcs-airoha-common.c
+@@ -1415,6 +1415,7 @@
+ };
+ 
+ static const struct airoha_pcs_match_data an7583_pcs_eth = {
++	.num_port = 1,
+ 	.port_type = AIROHA_PCS_ETH,
+ 	.usxgmii_rx_gb_out_vld_tweak = true,
+ 	.usxgmii_xfi_mode_sel = true,
+@@ -1423,6 +1424,7 @@
+ };
+ 
+ static const struct airoha_pcs_match_data an7583_pcs_pon = {
++	.num_port = 1,
+ 	.port_type = AIROHA_PCS_PON,
+ 	.usxgmii_rx_gb_out_vld_tweak = true,
+ 	.usxgmii_xfi_mode_sel = true,
+@@ -1431,6 +1433,7 @@
+ };
+ 
+ static const struct airoha_pcs_match_data an7583_pcs_pcie = {
++	.num_port = 2,
+ 	.port_type = AIROHA_PCS_PCIE,
+ 	.usxgmii_rx_gb_out_vld_tweak = true,
+ 	.usxgmii_xfi_mode_sel = true,
+@@ -1439,6 +1442,7 @@
+ };
+ 
+ static const struct airoha_pcs_match_data an7583_pcs_usb = {
++	.num_port = 1,
+ 	.port_type = AIROHA_PCS_USB,
+ 	.bringup = an7583_pcs_usb_phya_bringup,
+ };

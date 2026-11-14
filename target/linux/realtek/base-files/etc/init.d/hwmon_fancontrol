@@ -1,0 +1,10 @@
+#!/bin/sh /etc/rc.common
+
+case "$(uname -r)" in
+	6.18|6.18.*)
+		. /lib/realtek/6.18/fancontrol.sh
+		;;
+	*)
+		. /lib/realtek/legacy/fancontrol.sh
+		;;
+esac

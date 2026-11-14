@@ -7,9 +7,9 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=selinux-policy
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://git.defensec.nl/selinux-policy.git
-PKG_VERSION:=0.9
-PKG_MIRROR_HASH:=f1a37a4fc104fbacde3012178fc117b473899360f26a8735156394288441d99c
+PKG_SOURCE_URL:=git://git.defensec.nl/selinux-policy.git
+PKG_VERSION:=2.8.4
+PKG_MIRROR_HASH:=b622a52034010cf5e040743e3873cebf08fdc489a013a2fe9dd1e158b6fc7a52
 PKG_SOURCE_VERSION:=v$(PKG_VERSION)
 PKG_BUILD_DEPENDS:=secilc/host policycoreutils/host
 
@@ -44,10 +44,14 @@ endef
 define Package/selinux-policy/install
 	$(INSTALL_DIR) $(1)/etc/selinux/$(PKG_NAME)/contexts/files/
 	$(INSTALL_DIR) $(1)/etc/selinux/$(PKG_NAME)/policy/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/customizable_types $(1)/etc/selinux/$(PKG_NAME)/contexts/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/file_contexts.subs_dist $(1)/etc/selinux/$(PKG_NAME)/contexts/files/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/file_contexts $(1)/etc/selinux/$(PKG_NAME)/contexts/files/
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/policy.* $(1)/etc/selinux/$(PKG_NAME)/policy/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/customizable_types $(1)/etc/selinux/$(PKG_NAME)/contexts/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/default_contexts $(1)/etc/selinux/$(PKG_NAME)/contexts/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/default_type $(1)/etc/selinux/$(PKG_NAME)/contexts/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/failsafe_context $(1)/etc/selinux/$(PKG_NAME)/contexts/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/file_contexts $(1)/etc/selinux/$(PKG_NAME)/contexts/files/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/file_contexts.subs_dist $(1)/etc/selinux/$(PKG_NAME)/contexts/files/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/seusers $(1)/etc/selinux/$(PKG_NAME)/
 	$(INSTALL_DATA) ./files/selinux-config $(1)/etc/selinux/config
 endef
 

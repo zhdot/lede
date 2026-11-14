@@ -31,6 +31,7 @@
 		partition@140000 {
 			label = "rootfs";
 			reg = <0x140000 0xec0000>;
+			linux,rootfs;
 		};
 	};
 };
@@ -39,42 +40,47 @@
 	status = "okay";
 };
 
-&ethernet {
-	pinctrl-0 = <&mdio_pins>, <&rgmii1_pins>;
+&gmac1 {
+	status = "okay";
+	label = "wan";
+	phy-handle = <&ethphy4>;
 };
 
-&switch0 {
-	ports {
+&ethphy4 {
+	/delete-property/ interrupts;
+};
+
+&gsw {
+
 		port@0 {
+		compatible = "mediatek,mt753x-port";
 			status = "okay";
 			label = "lan1";
 		};
 
 		port@1 {
+		compatible = "mediatek,mt753x-port";
 			status = "okay";
 			label = "lan2";
 		};
 
 		port@2 {
+		compatible = "mediatek,mt753x-port";
 			status = "okay";
 			label = "lan3";
 		};
 
 		port@3 {
+		compatible = "mediatek,mt753x-port";
 			status = "okay";
 			label = "lan4";
 		};
 
-		port@4 {
-			status = "okay";
-			label = "wan";
-		};
-	};
 };
 
 &state_default {
 	gpio {
-		groups = "i2c", "uart2", "uart3", "rgmii2", "sdhci";
+		groups = "i2c", "uart2", "uart3", "sdhci";
 		function = "gpio";
 	};
 };

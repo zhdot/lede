@@ -1,0 +1,15 @@
+From: Felix Fietkau <nbd@nbd.name>
+Date: Mon, 21 Mar 2022 20:39:59 +0100
+Subject: [PATCH] net: ethernet: mtk_eth_soc: enable threaded NAPI
+
+This can improve performance under load by ensuring that NAPI processing is
+not pinned on CPU 0.
+
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
+
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -5112,0 +5113,2 @@
++	eth->dummy_dev->threaded = 1;
++	strcpy(eth->dummy_dev->name, "mtk_eth");

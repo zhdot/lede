@@ -9,7 +9,7 @@ get_device_irq() {
 
 	# wait up to 10 seconds for the irq/device to appear
 	while [ "${seconds}" -le 10 ]; do
-		line=$(grep -m 1 "${device}\$" /proc/interrupts) && break
+		line=$(grep -E -m 1 "${device}\$" /proc/interrupts) && break
 		seconds="$(( seconds + 2 ))"
 		sleep 2
 	done
@@ -29,29 +29,64 @@ set_interface_core() {
 }
 
 case "$(board_name)" in
-embedfire,doornet1|\
-friendlyarm,nanopi-r2c|\
-friendlyarm,nanopi-r2s|\
-xunlong,orangepi-r1-plus|\
-xunlong,orangepi-r1-plus-lts)
-	set_interface_core 2 "eth0"
-	set_interface_core 4 "eth1" "xhci-hcd:usb3"
+armsom,sige1|\
+armsom,sige3|\
+armsom,sige5|\
+armsom,sige7|\
+hinlink,opc-h28k|\
+widora,mangopi-m28k|\
+widora,mangopi-m28k-pro)
+	set_interface_core 4 "eth0"
 	;;
-embedfire,doornet2|\
-friendlyarm,nanopi-r4s|\
-sharevdi,guangmiao-g4c)
-	set_interface_core 10 "eth0"
-	set_interface_core 20 "eth1"
-	;;
-fastrhino,r66s|\
-firefly,rk3568-roc-pc)
+friendlyarm,nanopi-r28s|\
+friendlyarm,nanopi-r3s|\
+friendlyarm,nanopi-r5c|\
+linkease,easepi-r1|\
+sinovoip,rk3568-bpi-r2pro)
 	set_interface_core 2 "eth0"
 	set_interface_core 4 "eth1"
 	;;
-friendlyelec,nanopi-r5s)
-	set_interface_core 0 "eth0"
-	set_interface_core 2 "eth1"
-	set_interface_core 4 "eth2"
+friendlyarm,nanopi-r2c|\
+friendlyarm,nanopi-r2c-plus|\
+friendlyarm,nanopi-r2s|\
+friendlyarm,nanopi-r2s-plus|\
+radxa,cm3-io|\
+xunlong,orangepi-r1-plus|\
+xunlong,orangepi-r1-plus-lts)
+	set_interface_core 2 "eth0"
+	set_interface_core 4 "eth1" "xhci-hcd:usb[0-9]+"
+	;;
+friendlyarm,nanopi-r4s|\
+friendlyarm,nanopi-r4se|\
+friendlyarm,nanopi-r4s-enterprise|\
+friendlyarm,nanopi-r6c|\
+friendlyarm,nanopc-t6|\
+radxa,rock-5-itx|\
+radxa,rock-5t|\
+sharevdi,guangmiao-g4c|\
+xunlong,orangepi-5-plus)
+	set_interface_core 10 "eth0"
+	set_interface_core 20 "eth1"
+	;;
+friendlyarm,nanopi-r5s)
+	set_interface_core 2 "eth0"
+	set_interface_core 4 "eth1"
+	set_interface_core 8 "eth2"
+	;;
+friendlyarm,nanopi-r6s)
+	set_interface_core 10 "eth0"
+	set_interface_core 20 "eth1"
+	set_interface_core 40 "eth2"
+	;;
+radxa,e20c|\
+radxa,e24c)
+	set_interface_core 2 "eth0"
+	;;
+radxa,e54c)
+	set_interface_core 20 "eth0"
+	;;
+widora,mangopi-m28c)
+	set_interface_core 4 "eth0"
+	set_interface_core 8 "xhci-hcd:usb1"
 	;;
 esac
-

@@ -7,17 +7,24 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=bc
-PKG_VERSION:=1.06.95
+PKG_VERSION:=1.08.2
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=https://alpha.gnu.org/gnu/bc \
-	https://gnualpha.uib.no/bc/ \
-	https://mirrors.fe.up.pt/pub/gnu-alpha/bc/ \
-	https://www.nic.funet.fi/pub/gnu/alpha/gnu/bc/
-PKG_HASH:=7ee4abbcfac03d8a6e1a8a3440558a3d239d6b858585063e745c760957725ecc
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+PKG_SOURCE_URL:=@GNU/bc
+PKG_HASH:=ae470fec429775653e042015edc928d07c8c3b2fc59765172a330d3d87785f86
 
-PKG_FIXUP := autoreconf
+PKG_CPE_ID:=cpe:/a:gnu:bc
+
+PKG_SUBDIRS:=lib bc dc
+
+HOST_CONFIGURE_CACHE:=1
 
 include $(INCLUDE_DIR)/host-build.mk
+
+HOST_MAKE_FLAGS += SUBDIRS="$(PKG_SUBDIRS)"
+
+define Host/Uninstall
+	-$(call Host/Compile/Default,uninstall SUBDIRS='lib bc dc')
+endef
 
 $(eval $(call HostBuild))

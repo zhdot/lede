@@ -103,6 +103,7 @@ define Kernel/Patch/Default
 	$(call PatchDir,$(LINUX_DIR),$(GENERIC_PATCH_DIR),generic/)
 	$(call PatchDir,$(LINUX_DIR),$(GENERIC_HACK_DIR),generic-hack/)
 	$(call PatchDir,$(LINUX_DIR),$(PATCH_DIR),platform/)
+	$(if $(PATCH_DIR_SUBTARGET),$(call PatchDir,$(LINUX_DIR),$(PATCH_DIR_SUBTARGET),subtarget/))
 endef
 
 define Quilt/RefreshDir
@@ -116,7 +117,7 @@ define Quilt/RefreshDir
 endef
 
 define Quilt/Refresh/Host
-	$(call Quilt/RefreshDir,$(HOST_BUILD_DIR),$(PATCH_DIR))
+	$(call Quilt/RefreshDir,$(HOST_BUILD_DIR),$(HOST_PATCH_DIR))
 endef
 
 define Quilt/Refresh/Package
@@ -132,6 +133,7 @@ define Quilt/Refresh/Kernel
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(GENERIC_PATCH_DIR),generic/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(GENERIC_HACK_DIR),generic-hack/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR),platform/)
+	$(if $(PATCH_DIR_SUBTARGET),$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR_SUBTARGET),subtarget/))
 endef
 
 define Quilt/Template

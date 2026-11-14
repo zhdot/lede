@@ -1,88 +1,76 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qca-ssdk
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
+PKG_SOURCE_URL:=https://github.com/openwrt/qca-ssdk.git
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://source.codeaurora.org/quic/qsdk/oss/lklm/qca-ssdk
-PKG_SOURCE_DATE:=2021-04-28
-PKG_SOURCE_VERSION:=c9bc3bc34eaaac78083573524097356e2dcc1b66
-PKG_MIRROR_HASH:=29db78529be32427b8b96fcbfec22a016a243676781ec96d9d65b810944fa405
+PKG_SOURCE_DATE:=2025-05-30
+PKG_SOURCE_VERSION:=446db12b1fd3bca2e61e45cb01c4ad52cfddd95b
+PKG_MIRROR_HASH:=c2e6df159f02da78c76a2bb8b23ee35a7291d20a4d9ba22533926157966a8278
 
-LOCAL_VARIANT=$(patsubst qca-ssdk-%,%,$(patsubst qca-ssdk-%,%,$(BUILD_VARIANT)))
+PKG_FLAGS:=nonshared
+PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=no-lto
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
 
-define KernelPackage/qca-ssdk/default-nohnat
+define KernelPackage/qca-ssdk
   SECTION:=kernel
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
-  TITLE:=Kernel driver for QCA SSDK
-  FILES:=$(PKG_BUILD_DIR)/build/bin/qca-ssdk.ko
+  TITLE:=Qualcom SSDK switch driver
+  DEPENDS:=@(TARGET_qualcommax)
+  FILES:=$(PKG_BUILD_DIR)/qca-ssdk.ko
   AUTOLOAD:=$(call AutoLoad,30,qca-ssdk)
-  PROVIDES:=qca-ssdk
 endef
 
-define KernelPackage/qca-ssdk-nohnat
-$(call KernelPackage/qca-ssdk/default-nohnat)
-  DEPENDS:=@(TARGET_ipq806x||TARGET_ipq807x)
-  VARIANT:=nohnat
+define KernelPackage/qca-ssdk/Description
+  Driver for Qualcomm Atheros switches.
 endef
 
-define KernelPackage/qca-ssdk-nohnat/Description
-This package contains a qca-ssdk driver for QCA chipset
-endef
+GCC_VERSION=$(shell echo "$(CONFIG_GCC_VERSION)" | sed 's/[^0-9.]*\([0-9.]*\).*/\1/')
 
-define KernelPackage/qca-ssdk-hnat
-$(call KernelPackage/qca-ssdk/default-nohnat)
-  DEPENDS:=@TARGET_ipq40xx +kmod-ipt-extra +kmod-ipt-filter \
-	+kmod-ppp +TARGET_ipq40xx:kmod-qca-rfs
-  TITLE+= (hnat)
-  VARIANT:=hnat
-endef
+LNX_CONFIG_OPTS = LNX_MAKEOPTS='$(KERNEL_MAKEOPTS)' PRJ_PATH=$(PKG_BUILD_DIR) MODULE_TYPE=KSLIB modules
 
-define KernelPackage/qca-ssdk-hnat/Description
-This package contains a qca-ssdk-hnat driver for QCA chipset
-endef
+EXTRA_CFLAGS:= \
+	-fno-stack-protector \
+	-Wno-missing-prototypes \
+	-Wno-missing-declarations \
+	-I$(STAGING_DIR)/usr/include
 
-ifdef CONFIG_TOOLCHAIN_BIN_PATH
-TOOLCHAIN_BIN_PATH=$(CONFIG_TOOLCHAIN_BIN_PATH)
-else
-TOOLCHAIN_BIN_PATH=$(TOOLCHAIN_DIR)/bin
-endif
-
-QCASSDK_CONFIG_OPTS+= \
-	$(KERNEL_MAKE_FLAGS) \
-	KVER=$(LINUX_VERSION) \
+MAKE_FLAGS+= \
+	TARGET_NAME=$(CONFIG_TARGET_NAME) \
+	TOOL_PATH=$(TOOLCHAIN_DIR)/bin \
 	SYS_PATH=$(LINUX_DIR) \
-	GCC_VERSION=$(GCC_VERSION) \
 	TOOLPREFIX=$(TARGET_CROSS) \
-	TOOL_PATH=$(TOOLCHAIN_BIN_PATH) \
+	KVER=$(LINUX_VERSION) \
+	ARCH=$(LINUX_KARCH) \
 	TARGET_SUFFIX=$(CONFIG_TARGET_SUFFIX) \
-	EXTRA_CFLAGS=-fno-stack-protector -I$(STAGING_DIR)/usr/include
+	GCC_VERSION=$(GCC_VERSION) \
+	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
+	SoC=$(CONFIG_TARGET_SUBTARGET) \
+	SHELL="$(BASH)" \
+	PTP_FEATURE=disable SWCONFIG_FEATURE=disable \
+	ISISC_ENABLE=disable MHT_ENABLE=disable \
+	IN_QCA803X_PHY=FALSE IN_MP_PHY=FALSE \
+	$(LNX_CONFIG_OPTS)
 
-ifeq ($(LOCAL_VARIANT),hnat)
-    QCASSDK_CONFIG_OPTS+= HNAT_FEATURE=enable
-ifeq ($(BOARD),ipq40xx)
-    QCASSDK_CONFIG_OPTS+= RFS_FEATURE=enable
-endif
-endif
-
-ifeq ($(BOARD),ipq60xx)
-    QCASSDK_CONFIG_OPTS+= CHIP_TYPE=CPPE
-else ifeq ($(BOARD),ipq807x)
-    QCASSDK_CONFIG_OPTS+= CHIP_TYPE=HPPE
-else
-    QCASSDK_CONFIG_OPTS+= HK_CHIP=enable
+ifeq ($(CONFIG_TARGET_SUBTARGET), "ipq807x")
+    MAKE_FLAGS+= CHIP_TYPE=HPPE
 endif
 
-ifneq (, $(findstring $(BOARD), ipq60xx ipq807x))
-    QCASSDK_CONFIG_OPTS+= PTP_FEATURE=disable SWCONFIG_FEATURE=disable
+ifeq ($(CONFIG_TARGET_SUBTARGET), "ipq60xx")
+    MAKE_FLAGS+= CHIP_TYPE=CPPE
+endif
+
+ifeq ($(CONFIG_TARGET_SUBTARGET), "ipq50xx")
+    MAKE_FLAGS+= CHIP_TYPE=MP
 endif
 
 define Build/Compile
-	$(MAKE) -C $(PKG_BUILD_DIR) $(strip $(QCASSDK_CONFIG_OPTS))
+	+$(MAKE) $(PKG_JOBS) $(MAKE_FLAGS) -C $(PKG_BUILD_DIR) $(LNX_CONFIG_OPTS)
 endef
 
 define Build/InstallDev
@@ -105,21 +93,13 @@ define Build/InstallDev
 	if [ -f $(PKG_BUILD_DIR)/include/init/ssdk_init.h ]; then \
 	$(CP) -rf $(PKG_BUILD_DIR)/include/init/ssdk_init.h $(1)/usr/include/qca-ssdk/init/; \
 	fi
+	if [ -f $(PKG_BUILD_DIR)/include/init/ssdk_netlink.h ]; then \
+	$(CP) -rf $(PKG_BUILD_DIR)/include/init/ssdk_netlink.h $(1)/usr/include/qca-ssdk/init/; \
+	fi
 	$(CP) -rf $(PKG_BUILD_DIR)/include/fal $(1)/usr/include/qca-ssdk
 	$(CP) -rf $(PKG_BUILD_DIR)/include/common/*.h $(1)/usr/include/qca-ssdk
 	$(CP) -rf $(PKG_BUILD_DIR)/include/sal/os/linux/*.h $(1)/usr/include/qca-ssdk
 	$(CP) -rf $(PKG_BUILD_DIR)/include/sal/os/*.h $(1)/usr/include/qca-ssdk
 endef
 
-define KernelPackage/qca-ssdk-nohnat/install
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/qca-ssdk $(1)/etc/init.d/qca-ssdk
-endef
-
-define KernelPackage/qca-ssdk-hnat/install
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/qca-ssdk $(1)/etc/init.d/qca-ssdk
-endef
-
-$(eval $(call KernelPackage,qca-ssdk-nohnat))
-$(eval $(call KernelPackage,qca-ssdk-hnat))
+$(eval $(call KernelPackage,qca-ssdk))

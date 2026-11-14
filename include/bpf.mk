@@ -1,4 +1,4 @@
-BPF_DEPENDS := @HAS_BPF_TOOLCHAIN
+BPF_DEPENDS := @HAS_BPF_TOOLCHAIN +@NEED_BPF_TOOLCHAIN
 LLVM_VER:=
 
 CLANG_MIN_VER:=12
@@ -63,12 +63,14 @@ BPF_CFLAGS := \
 	-Wno-unused-label \
 	-O2 -emit-llvm -Xclang -disable-llvm-passes
 
-ifeq ($(DUMP),)
+ifneq ($(CONFIG_HAS_BPF_TOOLCHAIN),)
+ifeq ($(DUMP)$(filter download refresh,$(MAKECMDGOALS)),)
   CLANG_VER:=$(shell $(CLANG) -dM -E - < /dev/null | grep __clang_major__ | cut -d' ' -f3)
   CLANG_VER_VALID:=$(shell [ "$(CLANG_VER)" -ge "$(CLANG_MIN_VER)" ] && echo 1 )
   ifeq ($(CLANG_VER_VALID),)
     $(error ERROR: LLVM/clang version too old. Minimum required: $(CLANG_MIN_VER), found: $(CLANG_VER))
   endif
+endif
 endif
 
 define CompileBPF
@@ -80,4 +82,3 @@ define CompileBPF
 	$(CP) $(patsubst %.c,%.o,$(1)) $(patsubst %.c,%.debug.o,$(1))
 	$(LLVM_STRIP) --strip-debug $(patsubst %.c,%.o,$(1))
 endef
-

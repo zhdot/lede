@@ -23,6 +23,7 @@ PKG_LICENSE:=GPL-2.0
 PKG_CONFIG_DEPENDS += \
 	CONFIG_SIGNED_PACKAGES CONFIG_TARGET_INIT_PATH CONFIG_TARGET_PREINIT_DISABLE_FAILSAFE \
 	CONFIG_NAND_SUPPORT \
+	CONFIG_LEGACY_SDCARD_SUPPORT \
 	CONFIG_EMMC_SUPPORT \
 	CONFIG_CLEAN_IPKG \
 	CONFIG_PER_FEED_REPO \
@@ -38,8 +39,12 @@ endif
 define Package/base-files
   SECTION:=base
   CATEGORY:=Base system
-  DEPENDS:=+netifd +libc +jsonfilter +SIGNED_PACKAGES:usign +SIGNED_PACKAGES:openwrt-keyring +NAND_SUPPORT:ubi-utils +fstools +fwtool
-  TITLE:=Base filesystem for OpenWrt
+  DEPENDS:= \
+	+netifd +libc +jsonfilter +SIGNED_PACKAGES:usign +SIGNED_PACKAGES:openwrt-keyring \
+	+NAND_SUPPORT:ubi-utils +fstools +fwtool \
+	+SELINUX:procd-selinux +!SELINUX:procd +USE_SECCOMP:procd-seccomp \
+	+SELINUX:busybox-selinux +!SELINUX:busybox
+  TITLE:=Base filesystem for LEDE
   URL:=http://openwrt.org/
   VERSION:=$(PKG_RELEASE)-$(REVISION)
 endef
@@ -48,7 +53,6 @@ define Package/base-files/conffiles
 /etc/config/
 /etc/config/network
 /etc/config/system
-/etc/crontabs/
 /etc/dropbear/
 /etc/ethers
 /etc/group
@@ -89,10 +93,26 @@ define ImageConfigOptions
 	echo 'pi_preinit_net_messages="$(CONFIG_TARGET_PREINIT_SHOW_NETMSG)"' >>$(1)/lib/preinit/00_preinit.conf
 	echo 'pi_preinit_no_failsafe_netmsg="$(CONFIG_TARGET_PREINIT_SUPPRESS_FAILSAFE_NETMSG)"' >>$(1)/lib/preinit/00_preinit.conf
 	echo 'pi_preinit_no_failsafe="$(CONFIG_TARGET_PREINIT_DISABLE_FAILSAFE)"' >>$(1)/lib/preinit/00_preinit.conf
+ifeq ($(CONFIG_TARGET_DEFAULT_LAN_IP_FROM_PREINIT),y)
+	mkdir -p $(1)/etc/board.d
+	echo '. /lib/functions/uci-defaults.sh' >$(1)/etc/board.d/99-lan-ip
+	echo 'logger -t 99-lan-ip "setting custom default LAN IP"' >>$(1)/etc/board.d/99-lan-ip
+	echo 'board_config_update' >>$(1)/etc/board.d/99-lan-ip
+	echo 'json_select network' >>$(1)/etc/board.d/99-lan-ip
+	echo 'json_select lan' >>$(1)/etc/board.d/99-lan-ip
+	echo 'json_add_string ipaddr $(if $(CONFIG_TARGET_PREINIT_IP),$(CONFIG_TARGET_PREINIT_IP),"192.168.1.1")' >>$(1)/etc/board.d/99-lan-ip
+	echo 'json_add_string netmask $(if $(CONFIG_TARGET_PREINIT_NETMASK),$(CONFIG_TARGET_PREINIT_NETMASK),"255.255.255.0")' >>$(1)/etc/board.d/99-lan-ip
+	echo 'json_select ..' >>$(1)/etc/board.d/99-lan-ip
+	echo 'json_select ..' >>$(1)/etc/board.d/99-lan-ip
+	echo 'board_config_flush' >>$(1)/etc/board.d/99-lan-ip
+endif
 endef
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
+endef
+
+define Build/Quilt
 endef
 
 define Build/Compile/Default
@@ -100,6 +120,14 @@ define Build/Compile/Default
 endef
 Build/Compile = $(Build/Compile/Default)
 
+ifneq ($(CONFIG_USE_APK),)
+ifndef CONFIG_BUILDBOT
+  define Package/base-files/install-key
+	mkdir -p $(1)/etc/apk/keys
+	$(CP) $(BUILD_KEY_APK_PUB) $(1)/etc/apk/keys/
+  endef
+endif
+else
 ifdef CONFIG_SIGNED_PACKAGES
   define Build/Configure
 	[ -s $(BUILD_KEY) -a -s $(BUILD_KEY).pub ] || \
@@ -114,8 +142,8 @@ ifndef CONFIG_BUILDBOT
   define Package/base-files/install-key
 	mkdir -p $(1)/etc/opkg/keys
 	$(CP) $(BUILD_KEY).pub $(1)/etc/opkg/keys/`$(STAGING_DIR_HOST)/bin/usign -F -p $(BUILD_KEY).pub`
-
   endef
+endif
 endif
 endif
 
@@ -131,10 +159,18 @@ ifeq ($(CONFIG_EMMC_SUPPORT),)
   endef
 endif
 
+ifeq ($(CONFIG_LEGACY_SDCARD_SUPPORT),)
+  define Package/base-files/legacy-sdcard-support
+	rm -f $(1)/lib/upgrade/legacy-sdcard.sh
+  endef
+endif
+
+
 define Package/base-files/install
 	$(CP) ./files/* $(1)/
 	$(Package/base-files/install-key)
 	$(Package/base-files/nand-support)
+	$(Package/base-files/legacy-sdcard-support)
 	$(Package/base-files/emmc-support)
 	if [ -d $(GENERIC_PLATFORM_DIR)/base-files/. ]; then \
 		$(CP) $(GENERIC_PLATFORM_DIR)/base-files/* $(1)/; \
@@ -175,7 +211,8 @@ define Package/base-files/install
 		$(1)/usr/lib \
 		$(1)/usr/bin \
 		$(1)/sys \
-		$(1)/www \
+		$(1)/www
+	mkdir -p -m 750 \
 		$(1)/root
 
 	$(LN) /proc/mounts $(1)/etc/mtab
@@ -209,15 +246,29 @@ endif
 		cat $(BIN_DIR)/feeds.buildinfo >>$(1)/etc/build.feeds; \
 		cat $(BIN_DIR)/version.buildinfo >>$(1)/etc/build.version)
 
+	$(if $(CONFIG_TARGET_PREINIT_DISABLE_FAILSAFE), \
+		rm -f $(1)/etc/banner.failsafe,)
+
+	if [ ! -f $(TOPDIR)/feeds/luci/package.json ]; then \
+		$(CP) ./luci/* $(1)/; \
+	fi
+
+ifneq ($(CONFIG_USE_APK),)
+	mkdir -p $(1)/etc/apk/repositories.d
+	$(call FeedSourcesAppendAPK,$(1)/etc/apk/repositories.d/distfeeds.list)
+	$(VERSION_SED_SCRIPT) $(1)/etc/apk/repositories.d/distfeeds.list
+
+	rm -f $(1)/etc/uci-defaults/13_fix-group-user
+	rm -f $(1)/sbin/pkg_check
+	echo $(PKG_RELEASE)~$(lastword $(subst -, ,$(REVISION))) >$(TMP_DIR)/base-files.version
+else
 	$(if $(CONFIG_CLEAN_IPKG),, \
 		mkdir -p $(1)/etc/opkg; \
-		$(call FeedSourcesAppend,$(1)/etc/opkg/distfeeds.conf); \
+		$(call FeedSourcesAppendOPKG,$(1)/etc/opkg/distfeeds.conf); \
 		$(VERSION_SED_SCRIPT) $(1)/etc/opkg/distfeeds.conf)
 	$(if $(CONFIG_IPK_FILES_CHECKSUMS),, \
 		rm -f $(1)/sbin/pkg_check)
-
-	$(if $(CONFIG_TARGET_PREINIT_DISABLE_FAILSAFE), \
-		rm -f $(1)/etc/banner.failsafe,)
+endif
 endef
 
 ifneq ($(DUMP),1)

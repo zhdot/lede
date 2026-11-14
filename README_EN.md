@@ -1,88 +1,201 @@
-Welcome to Lean's git source of OpenWrt and packages
-=
+# Welcome to Lean's git source of OpenWrt and packages
 
-How to build your Openwrt firmware.
--
-Note:
---
-1. DO **NOT** USE **root** USER FOR COMPILING!!!
+I18N: [English](README_EN.md) | [简体中文](README.md) | [日本語](README_JA.md)
 
-2. Users within China should prepare proxy before building.
+## Official Channels
 
-3. Web admin panel default IP is 192.168.1.1 and default password is "password".
+If you have technical questions for discussion or sharing, feel free to join the following channels:
 
-Let's start!
----
-1. First, install Ubuntu 64bit (Ubuntu 20.04 LTS x86 is recommended).
+1. QQ Group: *OpenWRT Firmware Technical Research Group*, Group Number is `891659613`.
+Join the group: [Link](https://jq.qq.com/?_wv=1027&k=XL8SK5aC "Op固件技术研究群").
+    - [Click to download QQ client](https://im.qq.com/pcqq).
 
-2. Run `sudo apt-get update` in the terminal, and then run
-    `
-    sudo apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf wget curl swig rsync
-    `
+2. Telegram Group: *OpenWRT Firmware Technical Research Group*.
+Join the group: [Link](https://t.me/JhKgAA6Hx1 "OP 编译官方大群").
 
-3. Run `git clone https://github.com/coolsnowwolf/lede` to clone the source code, and then `cd lede` to enter the directory
+## ArmSoM Sige Board Series Introduction
 
-4. ```bash
+ArmSoM-Sige Series: Your All-in-One Powerhouse for Soft Routing, SBCs, Mini Servers, and Home Automation.
+
+[ArmSoM Store](https://www.aliexpress.com/store/1102800175)
+
+Buy Link ：
+[![sige1-en](doc/sige-en.jpg)](https://aliexpress.com/item/3256807356692995.html)
+
+## Notice
+
+1. **Never compile OpenWRT as `root`**
+2. If you are living in mainland China, please make sure you could visit the **REAL** Internet.
+3. Default login IP is `192.168.1.1`, password is `password`.
+
+## How to Compile
+
+1. Install a Linux distribution, Debian or Ubuntu LTS is recommended.
+
+2. Install dependencies:
+
+   ```bash
+   sudo apt update -y
+   sudo apt full-upgrade -y
+   sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+   bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext \
+   git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev \
+   libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev \
+   libssl-dev libtool llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 \
+   python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo \
+   uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+   ```
+
+3. Clone the source code, update `feeds` and configure:
+
+   ```bash
+   git clone https://github.com/coolsnowwolf/lede
+   cd lede
    ./scripts/feeds update -a
    ./scripts/feeds install -a
    make menuconfig
    ```
 
-5. Run `make -j8 download V=s` to download libraries and dependencies (user in China should use global proxy when possible)
+4. Download libraries and compile firmware
+   > (`-j` is the thread count, single-thread is recommended for the first build):
 
-6. Run `make -j1 V=s` (integer following -j is the thread count, single-thread is recommended for the first build) to start building your firmware.
+   ```bash
+   make download -j8
+   make V=s -j1
+   ```
 
-This source code is promised to be compiled successfully.
+These commands are supposed to compile the source code successfully.
+All source code of R23 is included, including IPK.
 
-You can use this source code freely, but please link this GitHub repository when redistributing. Thank you for your cooperation!
-=
+You can use this source code freely, but please link this GitHub repository when redistributing.
+Thank you for your cooperation!
 
 Rebuild:
+
 ```bash
 cd lede
 git pull
-./scripts/feeds update -a && ./scripts/feeds install -a
+./scripts/feeds update -a
+./scripts/feeds install -a
 make defconfig
-make -j8 download
-make -j$(($(nproc) + 1)) V=s
+make download -j8
+make V=s -j$(nproc)
 ```
 
 If reconfiguration is need:
+
 ```bash
 rm -rf ./tmp && rm -rf .config
 make menuconfig
-make -j$(($(nproc) + 1)) V=s
+make V=s -j$(nproc)
 ```
 
-Build result will be produced to `bin/targets` directory.
+Build artifacts will be outputted to `bin/targets` directory.
 
-Special tips:
-------
-1. This source code doesn't contain any backdoors or close source applications that can monitor/capture your HTTPS traffic, SSL is the final castle of cyber security. Safety is what a firmware should achieve.
+### If you are using WSL/WSL2 as your build environment
 
-2. If you have any technical problem, you may join the QQ discussion group: 297253733, link: click [here](https://jq.qq.com/?_wv=1027&k=5yCRuXL)
+WSL's `PATH` potentially contain Windows paths with spaces, which may cause compilation failure.
+Please add the following lines to your local environment profiles before compiling:
 
-3. Want to learn OpenWrt development but don't know how? Can't motivate yourself for self-learning? Not enough fundamental knowledge? Learn OpenWrt development with Mr. Zuo through his Beginner OpenWrt Training Course. Click [here](http://forgotfun.org/2018/04/openwrt-training-2018.html) to register.
+```bash
+# Update and reload your profile, ~/.bashrc for example.
+cat << EOF >> ~/.bashrc
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+EOF
+source ~/.bashrc
+```
 
-## Router Recommendation
-Not Sponsored: If you are finding a low power consumption, small and performance promising x86/x64 router, I personally recommend the 
-EZPROv1 Alumium Edition (N3710 4000M): [Details](https://item.taobao.com/item.htm?spm=a230r.1.14.20.144c763fRkK0VZ&id=561126544764)
+NTFS-formatted drives mounted to a WSL distribution will be case-insensitive by default.
+This will cause the following error when compiling in WSL/WSL2:
 
-![xm1](doc/xm5.jpg)
-![xm2](doc/xm6.jpg)
+```txt
+Build dependency: OpenWrt can only be built on a case-sensitive filesystem
+```
+
+A simple solution is to create a case-sensitive directory for the repository before `git clone`:
+
+```powershell
+# Open a terminal as administrator
+PS > fsutil.exe file setCaseSensitiveInfo <your_local_lede_path> enable
+# Clone this repository to the case-sensitive directory <your_local_lede_path>
+PS > git clone git@github.com:coolsnowwolf/lede.git <your_local_lede_path>
+```
+
+> For directories that have already been `git clone`, `fsutil.exe` will not take effect.
+> Case sensitivity will only be enabled for new changes in the directory.
+
+### macOS Compilation
+
+1. Install Xcode from AppStore
+
+2. Install Homebrew:
+
+   ```bash
+   /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+   ```
+
+3. Install toolchain, dependencies and packages with Homebrew:
+
+   ```bash
+   brew unlink awk
+   brew install coreutils diffutils findutils gawk gnu-getopt gnu-tar grep make ncurses pkg-config wget quilt xz
+   brew install gcc@11
+   ```
+
+4. Update your system environment:
+
+   - mac with intel chip
+
+   ```bash
+   echo 'export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/usr/local/opt/findutils/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/usr/local/opt/gnu-getopt/bin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/usr/local/opt/gnu-tar/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/usr/local/opt/grep/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/usr/local/opt/gnu-sed/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/usr/local/opt/make/libexec/gnubin:$PATH"' >> ~/.bashrc
+   ```
+
+   - mac with apple chip
+
+   ```zsh
+   echo 'export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/opt/homebrew/opt/findutils/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/opt/homebrew/opt/gnu-getopt/bin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/opt/homebrew/opt/gnu-tar/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/opt/homebrew/opt/grep/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/opt/homebrew/opt/gnu-sed/libexec/gnubin:$PATH"' >> ~/.bashrc
+   echo 'export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"' >> ~/.bashrc
+   ```
+
+5. Reload your shell profile `source ~/.bashrc && bash`, then you can compile normally like Linux.
+
+## Declaration
+
+1. This source code doesn't contain any backdoors or closed source applications that can monitor/capture your HTTPS traffic. SSL security is the final castle of cyber security. Safety is what a firmware should do.
+2. Want to learn OpenWRT development but don't know how to start? Can't motivate yourself for self-learning? Do not have enough fundamental knowledge? Learn OpenWRT development with Mr. Zuo through his Beginner OpenWRT Training Course. Click [here](http://forgotfun.org/2018/04/openwrt-training-2018.html) to register.
+3. QCA IPQ60xx open source repository: <https://github.com/coolsnowwolf/openwrt-gl-ax1800>
+4. OpenWRT Archive repository: <https://github.com/coolsnowwolf/openwrt>
+
+## Introduction to Software Routers
+
+Yingku R2 - N95/N300 Mini Four-Network HomeLab Server
+
+(Introduction page - Yingku Technology (support AliPay Huabei)):
+
+[Pre-sale link](https://item.taobao.com/item.htm?ft=t&id=719159813003)
+<div align="left">
+<a href="https://item.taobao.com/item.htm?ft=t&id=719159813003">
+  <img src="doc/r1.jpg" width = "600" alt="" align=center />
+</a>
+</div>
+<br>
 
 ## Donation
 
-If this project does help you, please consider donating to support the development of this project.
+If this project did helped you, please consider donating to support the development of this project.
 
-### Alipay
-
-![alipay](doc/alipay_donate.jpg)
-
-### WeChat
-
-![wechat](doc/wechat_donate.jpg)
-
-## Note: Addition Lean's private package source code in `./package/lean` directory. Use it under GPL v3.
-
-## GPLv3 is compatible with more licenses than GPLv2: it allows you to make combinations with code that has specific kinds of additional requirements that are not in GPLv3 itself. Section 7 has more information about this, including the list of additional requirements that are permitted.
+<div align="left">
+  <img src="./doc/star.png" width = "400" alt="" align=center />
+</div>
+<br>

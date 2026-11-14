@@ -11,6 +11,7 @@ P4REV:=9
 PKG_VERSION:=5.0.4.0
 
 PKG_BUILD_PARALLEL:=1
+PATCH_DIR:=./patches-$(KERNEL_PATCHVER)
 
 # PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/$(PKG_NAME)
 PKG_KCONFIG:= \
@@ -201,7 +202,7 @@ endef
 define KernelPackage/mt7615d_dbdc
   CATEGORY:=Kernel modules
   TITLE:=MTK wifi AP driver
-  DEPENDS:=@TARGET_ramips +kmod-mt7615d +maccalc
+  DEPENDS:=@TARGET_ramips +kmod-mt7615d +maccalc +PACKAGE_firewall:kmod-br-netfilter
   SUBMENU:=Wireless Drivers
   MENU:=1
 endef
@@ -234,7 +235,7 @@ define Build/Compile
 endef
 
 define Build/Install
-        :
+	:
 endef
 
 define KernelPackage/mt7615d/install

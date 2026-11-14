@@ -16,10 +16,6 @@
 		led-upgrade = &led_sys;
 	};
 
-	chosen {
-		bootargs = "console=ttyS0,115200";
-	};
-
 	memory@0 {
 		device_type = "memory";
 		reg = <0x0 0x8000000>;
@@ -29,26 +25,25 @@
 		compatible = "gpio-keys-polled";
 		poll-interval = <20>;
 
-		reset {
+		/* is this pin 3 on the external RTL8231 (&gpio1)? */
+		/*reset {
 			label = "reset";
 			gpios = <&gpio0 67 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_RESTART>;
-		};
+		};*/
 	};
 
 	leds {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinmux_disable_sys_led>;
 		compatible = "gpio-leds";
 
 		led_sys: sys {
 			label = "green:sys";
-			gpios = <&gpio0 47 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
 		};
 		// GPIO 25: power on/off all port leds
 	};
-};
-
-&gpio0 {
-	indirect-access-bus-id = <0>;
 };
 
 &spi0 {
@@ -101,26 +96,19 @@
 	};
 };
 
-&ethernet0 {
-	mdio: mdio-bus {
-		compatible = "realtek,rtl838x-mdio";
-		regmap = <&ethernet0>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		INTERNAL_PHY(8)
-		INTERNAL_PHY(9)
-		INTERNAL_PHY(10)
-		INTERNAL_PHY(11)
-		INTERNAL_PHY(12)
-		INTERNAL_PHY(13)
-		INTERNAL_PHY(14)
-		INTERNAL_PHY(15)
-	};
+&mdio_bus0 {
+	PHY_C22(8, 8)
+	PHY_C22(9, 9)
+	PHY_C22(10, 10)
+	PHY_C22(11, 11)
+	PHY_C22(12, 12)
+	PHY_C22(13, 13)
+	PHY_C22(14, 14)
+	PHY_C22(15, 15)
 };
 
 &switch0 {
-	ports {
+	ethernet-ports {
 		#address-cells = <1>;
 		#size-cells = <0>;
 

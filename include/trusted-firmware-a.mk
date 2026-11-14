@@ -1,9 +1,9 @@
 PKG_NAME ?= trusted-firmware-a
-PKG_CPE_ID ?= cpe:/a:arm:arm_trusted_firmware
+PKG_CPE_ID ?= cpe:/a:arm:trusted_firmware-a
 
 ifndef PKG_SOURCE_PROTO
 PKG_SOURCE = trusted-firmware-a-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://git.trustedfirmware.org/TF-A/trusted-firmware-a.git/snapshot
+PKG_SOURCE_URL:=https://codeload.github.com/TrustedFirmware-A/trusted-firmware-a/tar.gz/v$(PKG_VERSION)?
 endif
 
 PKG_BUILD_DIR = $(BUILD_DIR)/$(PKG_NAME)-$(BUILD_VARIANT)/$(PKG_NAME)-$(PKG_VERSION)
@@ -68,6 +68,9 @@ define Build/Trusted-Firmware-A/Target
   endef
 endef
 
+define Build/Configure/Trusted-Firmware-A
+	$(INSTALL_DIR) $(STAGING_DIR)/usr/include
+endef
 
 DTC=$(wildcard $(LINUX_DIR)/scripts/dtc/dtc)
 

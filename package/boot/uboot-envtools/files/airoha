@@ -1,0 +1,39 @@
+#
+# Copyright (C) 2025 OpenWrt.org
+#
+
+[ -e /etc/config/ubootenv ] && exit 0
+
+touch /etc/config/ubootenv
+
+. /lib/uboot-envtools.sh
+. /lib/functions.sh
+
+board=$(board_name)
+
+case "$board" in
+gemtek,xg2010g|\
+gemtek,xr1710g|\
+fiberhome,hg5382a|\
+fiberhome,hg5585f-ct|\
+fiberhome,hg5585f-cu|\
+znxt,zn504xg-d|\
+znxt,zn515xg-d|\
+h3c,hm2004-du|\
+nokia,xg-040g-md-ubi|\
+nokia,xg-040g-tf-ubi|\
+nokia,xg-040g-mf-ubi)
+	. /lib/upgrade/nand.sh
+	ubidev="$(nand_find_ubi ubi)"
+	for name in ubootenv ubootenv2; do
+		volume="$(nand_find_volume "$ubidev" "$name")"
+		[ -n "$volume" ] || continue
+		ubootenv_add_uci_config "/dev/$volume" "0x0" "0x1f000" "0x1f000" "1"
+	done
+	;;
+esac
+
+config_load ubootenv
+config_foreach ubootenv_add_app_config
+
+exit 0

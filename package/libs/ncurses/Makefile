@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2006-2015 OpenWrt.org
+# Copyright (C) 2006-2026 OpenWrt.org
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -8,12 +8,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ncurses
-PKG_VERSION:=6.3
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_CPE_ID:=cpe:/a:gnu:ncurses
+PKG_VERSION_MAJOR:=6.6
+PKG_SNAPSHOT_DATE:=20260801
+PKG_VERSION:=$(PKG_VERSION_MAJOR)$(if $(PKG_SNAPSHOT_DATE),.$(PKG_SNAPSHOT_DATE),)
+PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=@GNU/$(PKG_NAME)
-PKG_HASH:=97fc51ac2b085d4cde31ef4d2c3122c21abc217e9090a43a30fc5ec21684e059
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/ThomasDickey/ncurses-snapshots.git
+PKG_SOURCE_VERSION:=90b8a67c736ad903e73567d47779315ae586119d
+PKG_MIRROR_HASH:=deaff345e390793e71630f8d9f4f65609ab3057e1f1a51290f552eeb506edeac
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=README
@@ -30,14 +34,14 @@ define Package/terminfo
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Terminal Info Database (ncurses)
-  URL:=http://www.gnu.org/software/ncurses/
+  URL:=https://www.gnu.org/software/ncurses/
 endef
 
 define Package/libncurses
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Terminal handling library (Unicode)
-  URL:=http://www.gnu.org/software/ncurses/
+  URL:=https://www.gnu.org/software/ncurses/
   PROVIDES:=libncursesw
   DEPENDS:= +terminfo
   ABI_VERSION:=6
@@ -51,7 +55,11 @@ define Package/libncurses-dev
   TITLE:=Development files for the ncurses library
 endef
 
-TARGET_CFLAGS += $(FPIC)
+define Package/libncurses/config
+        source "$(SOURCE)/Config.in"
+endef
+
+TARGET_CFLAGS += $(FPIC) -std=gnu17
 
 CONFIGURE_ARGS += \
 	--enable-echo \
@@ -81,6 +89,7 @@ CONFIGURE_VARS += \
 HOST_CFLAGS += $(HOST_FPIC)
 
 HOST_CONFIGURE_ARGS += \
+	--enable-pc-files \
 	--without-cxx \
 	--without-cxx-binding \
 	--without-ada \
@@ -88,7 +97,8 @@ HOST_CONFIGURE_ARGS += \
 	--without-manpages \
 	--without-profile \
 	--without-tests \
-	--without-curses-h
+	--without-curses-h \
+	--disable-db-install
 
 
 ifeq ($(HOST_OS),FreeBSD)
@@ -122,7 +132,9 @@ ifneq ($(HOST_OS),FreeBSD)
 	)
 	for file in \
 		a/ansi \
+		a/alacritty \
 		d/dumb \
+		f/foot \
 		l/linux \
 		r/rxvt \
 		r/rxvt-unicode \
@@ -134,7 +146,8 @@ ifneq ($(HOST_OS),FreeBSD)
 		v/vt102 \
 		x/xterm \
 		x/xterm-color \
-		x/xterm-256color; do \
+		x/xterm-256color \
+		$(call qstrip,$(CONFIG_LIBNCURSES_TERMINFO)); do \
 		$(INSTALL_DIR) $(1)/usr/share/terminfo/`dirname $$$$file`; \
 		$(CP) $(PKG_INSTALL_DIR)/usr/share/terminfo/$$$$file \
 			$(1)/usr/share/terminfo/$$$$file; \
@@ -177,6 +190,8 @@ define Build/InstallDev
 	$(SED) 's,^\(prefix\|exec_prefix\)=.*,\1=$(STAGING_DIR)/usr,g' -e 's/$$$$INCS //g' \
 		$(2)/bin/ncursesw6-config
 	ln -sf $(STAGING_DIR)/host/bin/ncursesw6-config $(1)/usr/bin/ncursesw6-config
+	$(SED) 's,$(TOOLCHAIN_DIR),$(STAGING_DIR),g' \
+		$(1)/usr/lib/pkgconfig/ncursesw.pc
 endef
 
 define Host/Compile

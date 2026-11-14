@@ -1,4 +1,3 @@
-#!/bin/sh
 #
 # Copyright (c) 2015 The Linux Foundation. All rights reserved.
 # Copyright (c) 2011-2015 OpenWrt.org
@@ -7,107 +6,392 @@
 . /lib/functions/uci-defaults.sh
 . /lib/functions/system.sh
 
+# EDMA strips/inserts each GMAC's default VLAN in hardware. Keep eth1/eth0
+# as the LAN/WAN devices while the physical CPU port remains tagged.
+ipq40xx_setup_ssdk_interfaces()
+{
+	local board="$1" ports modem=0
+
+	case "$board" in
+	engenius,emd1|\
+	engenius,emr3500|\
+	engenius,ens620ext|\
+	teltonika,rutx10|\
+	zyxel,wre6606|\
+	engenius,eap2200|\
+	edgecore,oap100|\
+	unielec,u4019-32m|\
+	compex,wpj419|\
+	tel,x1pro)
+		# These profiles have no active wired-port map yet.
+		ucidef_set_interface_lan "eth1"
+		return 0
+		;;
+	avm,fritzbox-7530|\
+	netgear,rbs40|\
+	netgear,rbs50|\
+	netgear,srs60)
+		ports="1:lan:1 2:lan:2 3:lan:3 4:lan:4 0t@eth1"
+		;;
+	8dev,habanero-dvk|\
+	asus,rt-ac42u|\
+	asus,rt-ac58u|\
+	avm,fritzbox-4040|\
+	linksys,ea6350v3|\
+	linksys,ea8300|\
+	linksys,mr8300|\
+	linksys,mr9000|\
+	teltonika,rutx50|\
+	yyets,le1)
+		ports="1:lan:1 2:lan:2 3:lan:3 4:lan:4 0t@eth1 5:wan 0t@eth0"
+		;;
+	extreme-networks,ws-ap391x)
+		ports="1:lan:1 2:lan:2 3:lan:3 5:lan:5 0t@eth1 4:wan:4 0t@eth0"
+		;;
+	mikrotik,hap-ac2|\
+	mikrotik,hap-ac3|\
+	mikrotik,hap-ac3-lte6-kit|\
+	p2w,r619ac-128m|\
+	p2w,r619ac-64m|\
+	pakedge,wr-1|\
+	zyxel,nbg6617)
+		ports="1:lan:4 2:lan:3 3:lan:2 4:lan:1 0t@eth1 5:wan 0t@eth0"
+		;;
+	meraki,mr30h)
+		ports="1:lan:4 2:lan:3 3:lan:2 4:lan:1 5:lan:5 0t@eth1"
+		;;
+	netgear,rbr40|\
+	netgear,rbr50|\
+	netgear,srr60)
+		ports="2:lan:1 3:lan:2 4:lan:3 0t@eth1 1:wan 0t@eth0"
+		;;
+	aruba,ap-303h)
+		ports="2:lan:1 3:lan:2 4:lan:3 0t@eth1 5:wan 0t@eth0"
+		;;
+	zte,mf287|\
+	zte,mf287plus|\
+	zte,mf287pro)
+		ports="2:lan:1 3:lan:2 4:lan:3 5:lan:4 0t@eth1"
+		modem=1
+		;;
+	linksys,mr6350)
+		ports="2:lan:1 3:lan:2 4:lan:3 5:lan:4 0t@eth1 1:wan 0t@eth0"
+		;;
+	qxwlan,e2600ac-c2)
+		ports="2:lan:1 4:lan:2 0t@eth1 5:wan:3 0t@eth0"
+		;;
+	meraki,gx20|\
+	meraki,z3|\
+	meraki,z3c)
+		ports="2:lan:2 3:lan:3 4:lan:4 5:lan:5 0t@eth1 1:wan 0t@eth0"
+		;;
+	buffalo,wtr-m2133hp|\
+	ezviz,cs-w3-wd1200g-eup)
+		ports="2:lan:3 3:lan:2 4:lan:1 0t@eth1 5:wan 0t@eth0"
+		;;
+	zte,mf286d)
+		ports="2:lan:4 3:lan:3 4:lan:2 0t@eth1 5:wan 0t@eth0"
+		;;
+	zte,mf18a)
+		ports="3:lan 0t@eth1 2:wan 0t@eth0"
+		;;
+	luma,wrtq-329acn)
+		ports="3:lan 0t@eth1 5:wan 0t@eth0"
+		;;
+	cellc,rtl30vw)
+		ports="3:lan:1 4:lan:2 0t@eth1"
+		;;
+	devolo,magic-2-wifi-next)
+		ports="3:lan:2 4:lan 5:lan:1 0t@eth1"
+		;;
+	glinet,gl-a1300|\
+	glinet,gl-b1300|\
+	glinet,gl-s1300|\
+	mobipromo,cm520-79f)
+		ports="3:lan:2 4:lan:1 0t@eth1 5:wan 0t@eth0"
+		;;
+	huawei,ap4050dn|\
+	netgear,ex6100v2|\
+	netgear,ex6150v2|\
+	zte,mf282plus)
+		ports="4:lan 0t@eth1"
+		;;
+	8dev,jalapeno|\
+	alfa-network,ap120c-ac|\
+	cilab,meshpoint-one|\
+	edgecore,ecw5211|\
+	glinet,gl-ap1300|\
+	google,wifi|\
+	linksys,whw03|\
+	linksys,whw03v2|\
+	mikrotik,cap-ac|\
+	netgear,wac510|\
+	sony,ncp-hg100-cellular|\
+	tplink,deco-m5-v1|\
+	tplink,deco-m5-v2|\
+	tplink,deco-m5-v3|\
+	ubnt,utr)
+		ports="4:lan 0t@eth1 5:wan 0t@eth0"
+		;;
+	plasmacloud,pa2200|\
+	qxwlan,e2600ac-c1)
+		ports="4:lan:1 0t@eth1 5:wan:2 0t@eth0"
+		;;
+	avm,fritzrepeater-3000|\
+	compex,wpj428|\
+	linksys,whw01|\
+	netgear,rbs20)
+		ports="4:lan:1 5:lan:2 0t@eth1"
+		;;
+	netgear,lbr20)
+		ports="4:lan:1 5:lan:2 0t@eth1"
+		modem=1
+		;;
+	openmesh,a42|\
+	skspruce,wia3300-20)
+		ports="4:lan:2 0t@eth1 5:wan:1 0t@eth0"
+		;;
+	mikrotik,wap-ac|\
+	mikrotik,wap-ac-lte|\
+	mikrotik,wap-r-ac)
+		ports="4:lan:2 5:lan:1 0t@eth1"
+		;;
+	dlink,dap-2610|\
+	engenius,eap1300|\
+	extreme-networks,ws-ap3915i|\
+	sophos,apx120|\
+	mikrotik,sxtsq-5-ac|\
+	avm,fritzrepeater-1200|\
+	mikrotik,lhgg-60ad|\
+	aruba,ap-303|\
+	aruba,ap-365|\
+	meraki,mr20|\
+	meraki,mr33|\
+	meraki,mr70|\
+	meraki,mr74)
+		ports="5:lan 0t@eth1"
+		;;
+	zte,mf289f)
+		ports="5:lan 0t@eth1 2:wan 0t@eth0"
+		;;
+	asus,map-ac1300|\
+	asus,map-ac2200|\
+	glinet,gl-b2200|\
+	netgear,rbr20|\
+	wallys,dr40x9)
+		ports="5:lan 0t@eth1 4:wan 0t@eth0"
+		;;
+	plasmacloud,pa1200)
+		ports="5:lan:1 0t@eth1 4:wan:2 0t@eth0"
+		;;
+	openmesh,a62)
+		ports="5:lan:2 0t@eth1 4:wan:1 0t@eth0"
+		;;
+	*)
+		return 1
+		;;
+	esac
+
+	ucidef_add_switch "switch0" $ports
+	# EDMA selects the VLAN per GMAC; Linux uses the raw netdev. Keep the
+	# switch CPU port tagged, but let preinit match roles to eth1/eth0.
+	local roles index device
+	json_select switch
+	json_select switch0
+	json_get_keys roles roles
+	json_select roles
+	for index in $roles; do
+		json_select "$index"
+		json_get_var device device
+		json_add_string device "${device%%.*}"
+		json_select ..
+	done
+	json_select ..
+	json_select ..
+	json_select ..
+	case "$ports" in
+	*:wan*) ucidef_set_interfaces_lan_wan "eth1" "eth0" ;;
+	*) ucidef_set_interface_lan "eth1" ;;
+	esac
+	[ "$modem" = 1 ] && ucidef_set_interface "wan" device "/dev/cdc-wdm0" protocol "qmi"
+	return 0
+}
+
 ipq40xx_setup_interfaces()
 {
 	local board="$1"
 
+	ipq40xx_setup_ssdk_interfaces "$board" && return 0
+
 	case "$board" in
 	8dev,habanero-dvk|\
-	8dev,jalapeno|\
-	alfa-network,ap120c-ac|\
-	engenius,emr3500|\
-	engenius,ens620ext)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "4:lan" "5:wan"
-		;;
-	asus,map-ac2200|\
-	cilab,meshpoint-one|\
-	openmesh,a42|\
-	openmesh,a62)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "5:lan" "4:wan"
-		;;
-	aruba,ap-303h|\
-	asus,rt-acrh17|\
-	asus,rt-ac58u|\
 	avm,fritzbox-4040|\
-	century,wr142ac|\
-	century,wr142ac-nand|\
-	ezviz,cs-w3-wd1200g-eup|\
+	asus,rt-ac42u|\
+	asus,rt-ac58u|\
 	linksys,ea6350v3|\
 	linksys,ea8300|\
-	unielec,u4019-32m)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "1:lan" "2:lan" "3:lan" "4:lan" "5:wan"
+	linksys,mr6350|\
+	linksys,mr8300|\
+	linksys,mr9000|\
+	mikrotik,hap-ac2|\
+	mikrotik,hap-ac3|\
+	mikrotik,hap-ac3-lte6-kit|\
+	p2w,r619ac-64m|\
+	p2w,r619ac-128m|\
+	pakedge,wr-1|\
+	teltonika,rutx50|\
+	yyets,le1|\
+	zyxel,nbg6617)
+		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
 		;;
-	avm,fritzrepeater-3000|\
-	compex,wpj419|\
-	compex,wpj428|\
-	engenius,eap1300|\
-	engenius,eap2200)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "4:lan" "5:lan"
-		;;
-	avm,fritzbox-7530)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "1:lan" "2:lan" "3:lan" "4:lan"
+	8dev,jalapeno|\
+	alfa-network,ap120c-ac|\
+	asus,map-ac1300|\
+	asus,map-ac2200|\
+	cilab,meshpoint-one|\
+	edgecore,ecw5211|\
+	glinet,gl-ap1300|\
+	glinet,gl-b2200|\
+	google,wifi|\
+	linksys,whw03|\
+	linksys,whw03v2|\
+	luma,wrtq-329acn|\
+	mikrotik,cap-ac|\
+	netgear,rbr20|\
+	netgear,wac510|\
+	sony,ncp-hg100-cellular|\
+	tplink,deco-m5-v1|\
+	tplink,deco-m5-v2|\
+	tplink,deco-m5-v3|\
+	ubnt,utr|\
+	wallys,dr40x9|\
+	zte,mf18a|\
+	zte,mf289f)
+		ucidef_set_interfaces_lan_wan "lan" "wan"
 		;;
 	aruba,ap-303|\
 	aruba,ap-365|\
 	avm,fritzrepeater-1200|\
-	dlink,dap-2610 |\
-	engenius,emd1|\
+	dlink,dap-2610|\
+	engenius,eap1300|\
+	extreme-networks,ws-ap3915i|\
+	huawei,ap4050dn|\
+	meraki,mr20|\
 	meraki,mr33|\
-	zyxel,wre6606)
-		ucidef_set_interface_lan "eth0"
+	meraki,mr70|\
+	meraki,mr74|\
+	mikrotik,lhgg-60ad|\
+	mikrotik,sxtsq-5-ac|\
+	netgear,ex6100v2|\
+	netgear,ex6150v2|\
+	zte,mf282plus)
+		ucidef_set_interface_lan "lan"
 		;;
-	buffalo,wtr-m2133hp)
-		ucidef_add_switch "switch0" \
-			"0u@eth0" "2:lan:3" "3:lan:2" "4:lan:1" "5:wan"
+	aruba,ap-303h|\
+	buffalo,wtr-m2133hp|\
+	ezviz,cs-w3-wd1200g-eup|\
+	netgear,rbr40|\
+	netgear,rbr50|\
+	netgear,srr60)
+		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3" "wan"
 		;;
-	cellc,rtl30vw)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "3:lan" "4:lan"
+	avm,fritzbox-7530|\
+	netgear,rbs40|\
+	netgear,rbs50|\
+	netgear,srs60)
+		ucidef_set_interface_lan "lan1 lan2 lan3 lan4"
 		;;
+	avm,fritzrepeater-3000|\
+	cellc,rtl30vw|\
+	compex,wpj428|\
+	netgear,rbs20)
+		ucidef_set_interface_lan "lan1 lan2"
+		;;
+	devolo,magic-2-wifi-next)
+		ucidef_set_interface_lan "lan1 lan2 ghn"
+		;;
+	extreme-networks,ws-ap391x)
+		ucidef_set_interfaces_lan_wan "sw-eth1 sw-eth2 sw-eth3 sw-eth5" "sw-eth4"
+		;;
+	linksys,whw01)
+		ucidef_set_interface_lan "eth1 eth2"
+		;;
+	glinet,gl-a1300|\
 	glinet,gl-b1300|\
 	glinet,gl-s1300|\
-	qxwlan,e2600ac-c1|\
-	qxwlan,e2600ac-c2)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "3:lan" "4:lan" "5:wan"
-		;;
-	hiwifi,c526a|\
-	zte,mf263)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "2:lan" "3:lan" "4:lan" "5:wan"
-		;;
-	leguang,ca100)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "3:lan" "5:wan"
-		;;
 	mobipromo,cm520-79f)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "3:lan:2" "4:lan:1" "5:wan"
+		ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"
 		;;
-	netgear,ex6100v2|\
-	netgear,ex6150v2)
-		ucidef_add_switch "switch0" \
-			"0u@eth0" "4:lan"
+	meraki,gx20|\
+	meraki,z3|\
+	meraki,z3c)
+		ucidef_set_interfaces_lan_wan "lan2 lan3 lan4 lan5" "wan"
 		;;
-	netgear,ex6200v2)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "1:lan" "2:lan" "3:lan" "4:lan" "5:lan"
+	meraki,mr30h)
+		ucidef_set_interface_lan "lan1 lan2 lan3 lan4 lan5"
 		;;
-	p2w,r619ac|\
-	p2w,r619ac-128m|\
-	zyxel,nbg6617)
-		ucidef_add_switch "switch0" \
-			"0t@eth0" "1:lan:4" "2:lan:3" "3:lan:2" "4:lan:1" "5:wan:5"
+	mikrotik,wap-ac|\
+	mikrotik,wap-ac-lte|\
+	mikrotik,wap-r-ac)
+		ucidef_set_interface_lan "sw-eth1 sw-eth2"
+		;;
+	netgear,lbr20)
+		ucidef_set_interface_lan "lan1 lan2"
+		ucidef_set_interface "wan" device "/dev/cdc-wdm0" protocol "qmi"
+		;;
+	openmesh,a42|\
+	openmesh,a62)
+		ucidef_set_interfaces_lan_wan "ethernet2" "ethernet1"
+		;;
+	plasmacloud,pa1200|\
+	plasmacloud,pa2200)
+		ucidef_set_interfaces_lan_wan "ethernet1" "ethernet2"
+		;;
+	qxwlan,e2600ac-c1)
+		ucidef_set_interfaces_lan_wan "sw-eth1" "sw-eth2"
+		;;
+	qxwlan,e2600ac-c2)
+		ucidef_set_interfaces_lan_wan "sw-eth1 sw-eth2" "sw-eth3"
+		;;
+	skspruce,wia3300-20)
+		ucidef_set_interfaces_lan_wan "ETH2" "ETH1"
+		;;
+	sophos,apx120)
+		ucidef_set_interface_lan "lan"
+		;;
+	zte,mf286d)
+		ucidef_set_interfaces_lan_wan "lan2 lan3 lan4" "wan"
+		;;
+	zte,mf287|\
+	zte,mf287plus|\
+	zte,mf287pro)
+		ucidef_set_interface_lan "lan1 lan2 lan3 lan4"
+		ucidef_set_interface "wan" device "/dev/cdc-wdm0" protocol "qmi"
 		;;
 	*)
 		echo "Unsupported hardware. Network interfaces not initialized"
 		;;
 	esac
+}
+
+ipq40xx_setup_dsl()
+{
+	local board="$1"
+	local annex="j"
+	local tone="b"
+	local xfer_mode=""
+
+	case "$board" in
+	avm,fritzbox-7530)
+		;;
+	*)
+		return 0
+		;;
+	esac
+
+	ucidef_add_atm_bridge "1" "32" "llc" "bridged" "dsl"
+	ucidef_add_vdsl_modem "$annex" "$tone" "$xfer_mode"
+	ucidef_set_interface_wan "dsl0" "pppoe"
 }
 
 ipq40xx_setup_macs()
@@ -118,22 +402,13 @@ ipq40xx_setup_macs()
 	local label_mac=""
 
 	case "$board" in
-	8dev,habanero-dvk)
-		label_mac=$(mtd_get_mac_binary "ART" 0x1006)
+	avm,fritzbox-7530)
+		local tffsdev=$(find_mtd_chardev "nand-tffs")
+		wan_mac=$(/usr/bin/fritz_tffs_nand -b -d $tffsdev -n macdsl)
 		;;
-	asus,rt-acrh17|\
-	asus,rt-ac58u)
-		lan_mac=$(cat /sys/class/net/eth0/address)
-		wan_mac=$(macaddr_add "$lan_mac" 1)
+	devolo,magic-2-wifi-next)
+		lan_mac=$(mtd_get_mac_ascii APPSBLENV MacAddress0)
 		label_mac=$lan_mac
-		;;
-	century,wr142ac|\
-	century,wr142ac-nand)
-		lan_mac=$(cat /sys/class/net/eth0/address)
-		wan_mac=$(macaddr_add "$lan_mac" -1)
-		;;
-	cilab,meshpoint-one)
-		label_mac=$(mtd_get_mac_binary "ART" 0x1006)
 		;;
 	dlink,dap-2610)
 		lan_mac=$(mtd_get_mac_ascii bdcfg lanmac)
@@ -153,25 +428,19 @@ ipq40xx_setup_macs()
 		wan_mac=$(mtd_get_mac_ascii u-boot-env ethaddr)
 		lan_mac=$(macaddr_add "$wan_mac" 1)
 		;;
-	ezviz,cs-w3-wd1200g-eup)
-		label_mac=$(mtd_get_mac_binary "ART" 0x6)
-		;;
-	hiwifi,c526a)
-		lan_mac=$(mtd_get_mac_ascii bdinfo "Vfac_mac ")
-		wan_mac=$(macaddr_add "$lan_mac" 1)
-		;;
-	linksys,ea6350v3)
-		wan_mac=$(mtd_get_mac_ascii devinfo hw_mac_addr)
+	google,wifi)
+		wan_mac=$(get_mac_label)
 		lan_mac=$(macaddr_add "$wan_mac" 1)
 		;;
-	p2w,r619ac|\
+	netgear,rbr40|\
+	netgear,rbr50|\
+	netgear,srr60|\
+	pakedge,wr-1)
+		wan_mac=$(macaddr_add $(get_mac_label) 1)
+		;;
 	p2w,r619ac-128m)
-		wan_mac=$(cat /sys/class/net/eth0/address)
-		lan_mac=$(macaddr_add "$wan_mac" 1)
-		;;
-	zte,mf263)
-		wan_mac=$(mtd_get_mac_binary mac 0x0)
-		lan_mac=$(macaddr_add "$wan_mac" 1)
+		lan_mac=$(mtd_get_mac_binary ART 0)
+		wan_mac=$(mtd_get_mac_binary ART 6)
 		;;
 	esac
 
@@ -183,6 +452,7 @@ ipq40xx_setup_macs()
 board_config_update
 board=$(board_name)
 ipq40xx_setup_interfaces $board
+ipq40xx_setup_dsl $board
 ipq40xx_setup_macs $board
 board_config_flush
 

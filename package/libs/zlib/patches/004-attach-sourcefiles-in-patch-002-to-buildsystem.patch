@@ -1,11 +1,9 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 8e75f66..24d7329 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -95,34 +95,67 @@ set(ZLIB_PUBLIC_HDRS
-     ${CMAKE_CURRENT_BINARY_DIR}/zconf.h
-     zlib.h
- )
+@@ -121,33 +121,64 @@ configure_file(${zlib_BINARY_DIR}/zconf.
+ 
+ set(ZLIB_PUBLIC_HDRS ${zlib_BINARY_DIR}/zconf.h zlib.h)
+ 
 -set(ZLIB_PRIVATE_HDRS
 -    crc32.h
 -    deflate.h
@@ -15,8 +13,20 @@ index 8e75f66..24d7329 100644
 -    inflate.h
 -    inftrees.h
 -    trees.h
--    zutil.h
--)
+-    zutil.h)
++if(ARMv8)
++    set(ZLIB_PRIVATE_HDRS
++	crc32.h
++	deflate.h
++	gzguts.h
++	inffast.h
++	inffixed.h
++	inflate.h
++	inftrees.h
++	trees.h
++	zutil.h
++	contrib/arm/chunkcopy.h)
+ 
 -set(ZLIB_SRCS
 -    adler32.c
 -    compress.c
@@ -32,22 +42,7 @@ index 8e75f66..24d7329 100644
 -    inffast.c
 -    trees.c
 -    uncompr.c
--    zutil.c
--)
-+
-+if(ARMv8)
-+    set(ZLIB_PRIVATE_HDRS
-+	crc32.h
-+	deflate.h
-+	gzguts.h
-+	inffast.h
-+	inffixed.h
-+	inflate.h
-+	inftrees.h
-+	trees.h
-+	zutil.h
-+	contrib/arm/chunkcopy.h
-+    )
+-    zutil.c)
 +    set(ZLIB_SRCS
 +	adler32.c
 +	compress.c
@@ -63,9 +58,8 @@ index 8e75f66..24d7329 100644
 +	contrib/arm/inffast.c
 +	trees.c
 +	uncompr.c
-+	zutil.c
-+    )
-+    else()
++	zutil.c)
++else()
 +    set(ZLIB_PRIVATE_HDRS
 +	crc32.h
 +	deflate.h
@@ -75,8 +69,8 @@ index 8e75f66..24d7329 100644
 +	inflate.h
 +	inftrees.h
 +	trees.h
-+	zutil.h
-+    )
++	zutil.h)
++
 +    set(ZLIB_SRCS
 +	adler32.c
 +	compress.c
@@ -92,9 +86,8 @@ index 8e75f66..24d7329 100644
 +	inffast.c
 +	trees.c
 +	uncompr.c
-+	zutil.c
-+    )
++	zutil.c)
 +endif()
  
- if(NOT MINGW)
-     set(ZLIB_DLL_SRCS
+ if(WIN32)
+     set(zlib_static_suffix "s")

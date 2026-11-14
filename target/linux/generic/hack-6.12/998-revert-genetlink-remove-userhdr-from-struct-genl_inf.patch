@@ -1,0 +1,270 @@
+From ca31fb1ed58c293b3f02b1aa46aa672866aff540 Mon Sep 17 00:00:00 2001
+From: Marty Jones <mj8263788@gmail.com>
+Date: Thu, 17 Aug 2023 17:06:55 -0400
+Subject: [PATCH 7/8] Revert "genetlink: remove userhdr from struct genl_info"
+
+This reverts commit bffcc6882a1bb2be8c9420184966f4c2c822078e.
+---
+--- a/drivers/block/drbd/drbd_nl.c
++++ b/drivers/block/drbd/drbd_nl.c
+@@ -159,7 +159,7 @@
+ static int drbd_adm_prepare(struct drbd_config_context *adm_ctx,
+ 	struct sk_buff *skb, struct genl_info *info, unsigned flags)
+ {
+-	struct drbd_genlmsghdr *d_in = genl_info_userhdr(info);
++	struct drbd_genlmsghdr *d_in = info->userhdr;
+ 	const u8 cmd = info->genlhdr->cmd;
+ 	int err;
+ 
+@@ -1406,9 +1406,8 @@
+ 
+ static bool should_set_defaults(struct genl_info *info)
+ {
+-	struct drbd_genlmsghdr *dh = genl_info_userhdr(info);
+-
+-	return 0 != (dh->flags & DRBD_GENL_F_SET_DEFAULTS);
++	unsigned flags = ((struct drbd_genlmsghdr*)info->userhdr)->flags;
++	return 0 != (flags & DRBD_GENL_F_SET_DEFAULTS);
+ }
+ 
+ static unsigned int drbd_al_extents_max(struct drbd_backing_dev *bdev)
+@@ -4290,7 +4289,7 @@
+ int drbd_adm_new_minor(struct sk_buff *skb, struct genl_info *info)
+ {
+ 	struct drbd_config_context adm_ctx;
+-	struct drbd_genlmsghdr *dh = genl_info_userhdr(info);
++	struct drbd_genlmsghdr *dh = info->userhdr;
+ 	enum drbd_ret_code retcode;
+ 
+ 	retcode = drbd_adm_prepare(&adm_ctx, skb, info, DRBD_ADM_NEED_RESOURCE);
+--- a/include/net/genetlink.h
++++ b/include/net/genetlink.h
+@@ -122,6 +122,7 @@
+  * @family: generic netlink family
+  * @nlhdr: netlink message header
+  * @genlhdr: generic netlink message header
++ * @userhdr: user specific header
+  * @attrs: netlink attributes
+  * @_net: network namespace
+  * @user_ptr: user pointers
+@@ -133,6 +134,7 @@
+ 	const struct genl_family *family;
+ 	const struct nlmsghdr *	nlhdr;
+ 	struct genlmsghdr *	genlhdr;
++	void *			userhdr;
+ 	struct nlattr **	attrs;
+ 	possible_net_t		_net;
+ 	void *			user_ptr[2];
+@@ -149,11 +151,6 @@
+ 	write_pnet(&info->_net, net);
+ }
+ 
+-static inline void *genl_info_userhdr(const struct genl_info *info)
+-{
+-	return (u8 *)info->genlhdr + GENL_HDRLEN;
+-}
+-
+ #define GENL_SET_ERR_MSG(info, msg) NL_SET_ERR_MSG((info)->extack, msg)
+ 
+ #define GENL_SET_ERR_MSG_FMT(info, msg, args...) \
+--- a/net/netlink/genetlink.c
++++ b/net/netlink/genetlink.c
+@@ -1101,6 +1101,7 @@
+ 	info.family = family;
+ 	info.nlhdr = nlh;
+ 	info.genlhdr = nlmsg_data(nlh);
++	info.userhdr = nlmsg_data(nlh) + GENL_HDRLEN;
+ 	info.attrs = attrbuf;
+ 	info.extack = extack;
+ 	genl_info_net_set(&info, net);
+--- a/net/openvswitch/conntrack.c
++++ b/net/openvswitch/conntrack.c
+@@ -1672,7 +1672,7 @@
+ ovs_ct_limit_cmd_reply_start(struct genl_info *info, u8 cmd,
+ 			     struct ovs_header **ovs_reply_header)
+ {
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct sk_buff *skb;
+ 
+ 	skb = genlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
+--- a/net/openvswitch/datapath.c
++++ b/net/openvswitch/datapath.c
+@@ -590,7 +590,7 @@
+ 
+ static int ovs_packet_cmd_execute(struct sk_buff *skb, struct genl_info *info)
+ {
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct net *net = sock_net(skb->sk);
+ 	struct nlattr **a = info->attrs;
+ 	struct sw_flow_actions *acts;
+@@ -968,7 +968,7 @@
+ {
+ 	struct net *net = sock_net(skb->sk);
+ 	struct nlattr **a = info->attrs;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct sw_flow *flow = NULL, *new_flow;
+ 	struct sw_flow_mask mask;
+ 	struct sk_buff *reply;
+@@ -1238,7 +1238,7 @@
+ {
+ 	struct net *net = sock_net(skb->sk);
+ 	struct nlattr **a = info->attrs;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct sw_flow_key key;
+ 	struct sw_flow *flow;
+ 	struct sk_buff *reply = NULL;
+@@ -1340,7 +1340,7 @@
+ static int ovs_flow_cmd_get(struct sk_buff *skb, struct genl_info *info)
+ {
+ 	struct nlattr **a = info->attrs;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct net *net = sock_net(skb->sk);
+ 	struct sw_flow_key key;
+ 	struct sk_buff *reply;
+@@ -1399,7 +1399,7 @@
+ static int ovs_flow_cmd_del(struct sk_buff *skb, struct genl_info *info)
+ {
+ 	struct nlattr **a = info->attrs;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct net *net = sock_net(skb->sk);
+ 	struct sw_flow_key key;
+ 	struct sk_buff *reply;
+@@ -1676,7 +1676,7 @@
+ {
+ 	struct datapath *dp;
+ 
+-	dp = lookup_datapath(sock_net(skb->sk), genl_info_userhdr(info),
++	dp = lookup_datapath(sock_net(skb->sk), info->userhdr,
+ 			     info->attrs);
+ 	if (IS_ERR(dp))
+ 		return;
+@@ -1969,8 +1969,7 @@
+ 		return -ENOMEM;
+ 
+ 	ovs_lock();
+-	dp = lookup_datapath(sock_net(skb->sk), genl_info_userhdr(info),
+-			     info->attrs);
++	dp = lookup_datapath(sock_net(skb->sk), info->userhdr, info->attrs);
+ 	err = PTR_ERR(dp);
+ 	if (IS_ERR(dp))
+ 		goto err_unlock_free;
+@@ -2003,8 +2002,7 @@
+ 		return -ENOMEM;
+ 
+ 	ovs_lock();
+-	dp = lookup_datapath(sock_net(skb->sk), genl_info_userhdr(info),
+-			     info->attrs);
++	dp = lookup_datapath(sock_net(skb->sk), info->userhdr, info->attrs);
+ 	err = PTR_ERR(dp);
+ 	if (IS_ERR(dp))
+ 		goto err_unlock_free;
+@@ -2039,8 +2037,7 @@
+ 		return -ENOMEM;
+ 
+ 	ovs_lock();
+-	dp = lookup_datapath(sock_net(skb->sk), genl_info_userhdr(info),
+-			     info->attrs);
++	dp = lookup_datapath(sock_net(skb->sk), info->userhdr, info->attrs);
+ 	if (IS_ERR(dp)) {
+ 		err = PTR_ERR(dp);
+ 		goto err_unlock_free;
+@@ -2320,7 +2317,7 @@
+ static int ovs_vport_cmd_new(struct sk_buff *skb, struct genl_info *info)
+ {
+ 	struct nlattr **a = info->attrs;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct vport_parms parms;
+ 	struct sk_buff *reply;
+ 	struct vport *vport;
+@@ -2422,7 +2419,7 @@
+ 		return -ENOMEM;
+ 
+ 	ovs_lock();
+-	vport = lookup_vport(sock_net(skb->sk), genl_info_userhdr(info), a);
++	vport = lookup_vport(sock_net(skb->sk), info->userhdr, a);
+ 	err = PTR_ERR(vport);
+ 	if (IS_ERR(vport))
+ 		goto exit_unlock_free;
+@@ -2478,7 +2475,7 @@
+ 		return -ENOMEM;
+ 
+ 	ovs_lock();
+-	vport = lookup_vport(sock_net(skb->sk), genl_info_userhdr(info), a);
++	vport = lookup_vport(sock_net(skb->sk), info->userhdr, a);
+ 	err = PTR_ERR(vport);
+ 	if (IS_ERR(vport))
+ 		goto exit_unlock_free;
+@@ -2521,7 +2518,7 @@
+ static int ovs_vport_cmd_get(struct sk_buff *skb, struct genl_info *info)
+ {
+ 	struct nlattr **a = info->attrs;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct sk_buff *reply;
+ 	struct vport *vport;
+ 	int err;
+--- a/net/openvswitch/meter.c
++++ b/net/openvswitch/meter.c
+@@ -216,7 +216,7 @@
+ 			  struct ovs_header **ovs_reply_header)
+ {
+ 	struct sk_buff *skb;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 
+ 	skb = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_ATOMIC);
+ 	if (!skb)
+@@ -277,7 +277,7 @@
+ 
+ static int ovs_meter_cmd_features(struct sk_buff *skb, struct genl_info *info)
+ {
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct ovs_header *ovs_reply_header;
+ 	struct nlattr *nla, *band_nla;
+ 	struct sk_buff *reply;
+@@ -414,7 +414,7 @@
+ 	struct dp_meter *meter, *old_meter;
+ 	struct sk_buff *reply;
+ 	struct ovs_header *ovs_reply_header;
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct dp_meter_table *meter_tbl;
+ 	struct datapath *dp;
+ 	int err;
+@@ -487,7 +487,7 @@
+ 
+ static int ovs_meter_cmd_get(struct sk_buff *skb, struct genl_info *info)
+ {
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct ovs_header *ovs_reply_header;
+ 	struct nlattr **a = info->attrs;
+ 	struct dp_meter *meter;
+@@ -540,7 +540,7 @@
+ 
+ static int ovs_meter_cmd_del(struct sk_buff *skb, struct genl_info *info)
+ {
+-	struct ovs_header *ovs_header = genl_info_userhdr(info);
++	struct ovs_header *ovs_header = info->userhdr;
+ 	struct ovs_header *ovs_reply_header;
+ 	struct nlattr **a = info->attrs;
+ 	struct dp_meter *old_meter;
+--- a/net/tipc/netlink_compat.c
++++ b/net/tipc/netlink_compat.c
+@@ -1299,7 +1299,7 @@
+ 	struct tipc_nl_compat_msg msg;
+ 	struct nlmsghdr *req_nlh;
+ 	struct nlmsghdr *rep_nlh;
+-	struct tipc_genlmsghdr *req_userhdr = genl_info_userhdr(info);
++	struct tipc_genlmsghdr *req_userhdr = info->userhdr;
+ 
+ 	memset(&msg, 0, sizeof(msg));
+ 

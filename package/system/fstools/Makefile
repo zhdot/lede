@@ -8,30 +8,59 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fstools
-PKG_RELEASE:=$(AUTORELEASE)
+SR1010_SHARED_OVERLAY:=$(if $(and $(filter y,$(CONFIG_TARGET_zte_zx279133)),\
+	$(filter y,$(CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010))),y)
+PKG_RELEASE:=$(if $(SR1010_SHARED_OVERLAY),2,1)
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/fstools.git
-PKG_MIRROR_HASH:=faa4679562ae31cb6dbbc90b7f3f297294a51f7be1b12d10a5f0b7acfaae7252
-PKG_SOURCE_DATE:=2021-08-14
-PKG_SOURCE_VERSION:=2e3aca299ea7bbe74f219860510c4b34e77c7aa4
+PKG_MIRROR_HASH:=821e2720fdbb2e74de2913dfaa306833eb5a1b231d6ad3b33df3801218fecbf8
+PKG_SOURCE_DATE:=2026-07-25
+PKG_SOURCE_VERSION:=2aa16407fdedb3f1e1b915879f4d6772c5fe896c
 CMAKE_INSTALL:=1
 
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=
 
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 PKG_FLAGS:=nonshared
 
 PKG_BUILD_DEPENDS := util-linux
 PKG_CONFIG_DEPENDS := CONFIG_NAND_SUPPORT CONFIG_FSTOOLS_UBIFS_EXTROOT
+PKG_CONFIG_DEPENDS += CONFIG_TARGET_zte_zx279133 \
+	CONFIG_TARGET_zte_zx279133_DEVICE_zte_zxslc-sr1010
+PKG_PREPARED_DEPENDS += $(PKG_CONFIG_DEPENDS)
 
 PKG_MAINTAINER:=John Crispin <john@phrozen.org>
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
 
-TARGET_LDFLAGS += $(if $(CONFIG_USE_GLIBC),-lrt)
+# Quilt's generic PatchDir fallback treats every top-level entry as a patch.
+# Stage only generic *.patch files, so the SR1010 subdirectory and host
+# metadata are not mistaken for patches. New patch files are discovered
+# automatically without a committed series file.
+ifneq ($(strip $(QUILT)),)
+define Build/Patch
+	@rm -rf $(PKG_BUILD_DIR)/patches $(PKG_BUILD_DIR)/.patch-source
+	@mkdir -p $(PKG_BUILD_DIR)/.patch-source
+	@for patch in $(CURDIR)/patches/*.patch; do \
+		[ -f "$$$$patch" ] || continue; \
+		cp "$$$$patch" $(PKG_BUILD_DIR)/.patch-source/; \
+	done
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PKG_BUILD_DIR)/.patch-source,)
+	@rm -rf $(PKG_BUILD_DIR)/.patch-source
+	@touch $(PKG_BUILD_DIR)/.quilt_used
+endef
+endif
+
+ifneq ($(SR1010_SHARED_OVERLAY),)
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(CURDIR)/patches/sr1010,sr1010/)
+endef
+endif
+
 CMAKE_OPTIONS += $(if $(CONFIG_FSTOOLS_UBIFS_EXTROOT),-DCMAKE_UBIFS_EXTROOT=y)
 CMAKE_OPTIONS += $(if $(CONFIG_FSTOOLS_OVL_MOUNT_FULL_ACCESS_TIME),-DCMAKE_OVL_MOUNT_FULL_ACCESS_TIME=y)
 CMAKE_OPTIONS += $(if $(CONFIG_FSTOOLS_OVL_MOUNT_COMPRESS_ZLIB),-DCMAKE_OVL_MOUNT_COMPRESS_ZLIB=y)
@@ -39,7 +68,7 @@ CMAKE_OPTIONS += $(if $(CONFIG_FSTOOLS_OVL_MOUNT_COMPRESS_ZLIB),-DCMAKE_OVL_MOUN
 define Package/fstools
   SECTION:=base
   CATEGORY:=Base system
-  DEPENDS:=+ubox +USE_GLIBC:librt +NAND_SUPPORT:ubi-utils
+  DEPENDS:=+ubox +NAND_SUPPORT:ubi-utils
   TITLE:=OpenWrt filesystem tools
   MENU:=1
 endef
@@ -49,7 +78,7 @@ define Package/fstools/config
 		depends on PACKAGE_fstools
 		depends on NAND_SUPPORT
 		bool "Support extroot functionality with UBIFS"
-		default n
+		default y
 		help
 			This option makes it possible to use extroot functionality if the root filesystem resides on an UBIFS partition
 
@@ -75,11 +104,15 @@ define Package/snapshot-tool
   DEPENDS:=+libubox +fstools
 endef
 
+define Package/block-mount/conffiles
+/etc/config/fstab
+endef
+
 define Package/block-mount
   SECTION:=base
   CATEGORY:=Base system
   TITLE:=Block device mounting and checking
-  DEPENDS:=+fstools +ubox +libubox +libuci +libblobmsg-json +libjson-c
+  DEPENDS:=+ubox +libubox +libuci +libblobmsg-json +libjson-c
 endef
 
 define Package/blockd
@@ -92,9 +125,10 @@ endef
 define Package/fstools/install
 	$(INSTALL_DIR) $(1)/sbin $(1)/lib
 
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/{mount_root,jffs2reset} $(1)/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/{mount_root,factoryreset} $(1)/sbin/
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libfstools.so $(1)/lib/
-	$(LN) jffs2reset $(1)/sbin/jffs2mark
+	$(LN) factoryreset $(1)/sbin/jffs2mark
+	$(LN) factoryreset $(1)/sbin/jffs2reset
 endef
 
 define Package/snapshot-tool/install

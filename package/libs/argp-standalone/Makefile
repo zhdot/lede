@@ -18,6 +18,7 @@ PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
 
 PKG_LICENSE:=LGPL-2.1
 PKG_LICENSE:=Makefile.am
+PKG_BUILD_FLAGS:=no-lto
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/host-build.mk
@@ -34,8 +35,10 @@ define Package/argp-standalone/description
 endef
 
 MAKE_FLAGS += \
-	CFLAGS="$(TARGET_CFLAGS) $(FPIC)"
+	CFLAGS="$(TARGET_CFLAGS) $(FPIC) -std=gnu89"
 
+HOST_MAKE_FLAGS += \
+	CFLAGS="$(HOST_CFLAGS) $(FPIC) -std=gnu89"
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include

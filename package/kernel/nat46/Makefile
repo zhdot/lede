@@ -3,11 +3,11 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=nat46
 
-PKG_MIRROR_HASH:=3b424241de42b96d47217decf6f9071153cd0c11651f1ee006700836c6660fe8
-PKG_SOURCE_URL:=https://github.com/ayourtch/nat46.git
-PKG_SOURCE_DATE:=2021-05-17
+PKG_SOURCE_DATE:=2026-07-01
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_VERSION:=0d5860d63a8037e001e293091ebf6219cc2f9255
+PKG_SOURCE_URL:=https://github.com/ayourtch/nat46.git
+PKG_SOURCE_VERSION:=adb2f72e6fb81ee11b54513d384b68e3c3d93464
+PKG_MIRROR_HASH:=4a0c8c46e7b1347970f19ebb91aa531799ec04e41469b21052c407aad5b9a1a8
 
 PKG_MAINTAINER:=Hans Dedecker <dedeckeh@gmail.com>
 PKG_LICENSE:=GPL-2.0
@@ -15,7 +15,7 @@ PKG_LICENSE:=GPL-2.0
 include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/nat46
-  DEPENDS:=@IPV6
+  DEPENDS:=@IPV6 +kmod-nf-conntrack6
   TITLE:=Stateless NAT46 translation kernel module
   SECTION:=kernel
   SUBMENU:=Network Support

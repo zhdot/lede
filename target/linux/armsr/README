@@ -1,0 +1,105 @@
+This target generates images that can be used on ARM machines with EFI
+support (e.g EDKII/TianoCore or U-Boot with bootefi).
+
+There are two subtargets:
+- armv7 for 32-bit machines
+- armv8 for 64-bit machines
+
+The kernel and filesystem images can also be used directly by QEMU:
+
+Run with qemu-system-arm
+
+	# boot with initramfs embedded in
+	qemu-system-arm -nographic -M virt -m 64 -kernel openwrt-armsr-armv7-generic-initramfs-kernel.bin
+
+	# boot with accel=kvm
+	qemu-system-arm -nographic -M virt,accel=kvm -cpu host -m 64 -kernel
+	openwrt-armsr-armv7-generic-initramfs-kernel.bin
+
+	# boot with a separate rootfs
+	qemu-system-arm -nographic -M virt -m 64 -kernel openwrt-armsr-armv7-generic-kernel.bin \
+	  -drive file=openwrt-armsr-armv7-generic-ext4-rootfs.img,format=raw,if=virtio -append 'root=/dev/vda rootwait'
+
+	# boot with local dir as rootfs
+	qemu-system-arm -nographic -M virt -m 64 -kernel openwrt-armsr-armv7-generic-kernel.bin \
+	  -fsdev local,id=rootdev,path=root-armsr/,security_model=none \
+	  -device virtio-9p-pci,fsdev=rootdev,mount_tag=/dev/root \
+	  -append 'rootflags=trans=virtio,version=9p2000.L,cache=loose rootfstype=9p'
+
+Run with kvmtool
+
+	# start a named machine
+	lkvm run -k openwrt-armsr-armv7-zImage -i openwrt-armsr-armv7-rootfs.cpio --name armsr0
+
+	# start with virtio-9p rootfs
+	lkvm run -k openwrt-armsr-armv7-zImage -d root-armsr/
+
+	# stop "armsr0"
+	lkvm stop --name armsr0
+
+	# stop all
+	lkvm stop --all
+
+The multi-platform ARMv8 target can be used with QEMU:
+
+	qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic \
+		-kernel openwrt-armsr-armv8-generic-initramfs-kernel.bin \
+
+With a EDKII or U-Boot binary for the QEMU ARM virtual machines, you can use these
+images in EFI mode:
+
+32-bit:
+gunzip -c bin/targets/armsr/armv7/openwrt-armsr-armv7-generic-ext4-combined-efi.img.gz > openwrt-arm-32.img
+qemu-system-arm -nographic \
+    -cpu cortex-a15 -machine virt \
+    -bios bin/targets/armsr/armv7/u-boot-qemu_armv7/u-boot.bin \
+    -smp 1 -m 1024 \
+    -device virtio-rng-pci \
+    -drive file=openwrt-arm-32.img,format=raw,index=0,media=disk \
+    -netdev user,id=testlan -net nic,netdev=testlan \
+    -netdev user,id=testwan -net nic,netdev=testwan
+
+64-bit:
+gunzip -c bin/targets/armsr/armv8/openwrt-armsr-armv8-generic-ext4-combined-efi.img.gz > openwrt-arm-64.img
+qemu-system-aarch64 -nographic \
+    -cpu cortex-a53 -machine virt \
+    -bios bin/targets/armsr/armv8/u-boot-qemu_armv8/u-boot.bin \
+    -smp 1 -m 1024 \
+    -device virtio-rng-pci \
+    -drive file=openwrt-arm-64.img,format=raw,index=0,media=disk \
+    -netdev user,id=testlan -net nic,netdev=testlan \
+    -netdev user,id=testwan -net nic,netdev=testwan
+
+One can obtain other EFI/BIOS binaries from:
+- Distribution packages (such as qemu-efi-arm and qemu-efi-aarch64 in Debian)
+- Community builds, like retrage/edk2-nightly: https://retrage.github.io/edk2-nightly/
+
+Unified ARMv8 EFI image (Linux 6.18)
+----------------------------------
+The generic combined EFI image shares one kernel and rootfs between these
+GRUB choices, each with a failsafe entry:
+
+- Generic (default): retain firmware-provided ACPI tables or device tree.
+- Radxa Dragon Q6A: load /efi/openwrt/q6a.dtb and use the Q6A UART parameters.
+- Radxa Dragon Q8B: load /efi/openwrt/q8b.dtb and use the Q8B UART parameters.
+
+The menu waits five seconds. Qualcomm entries use ttyMSM0 independently of
+Generic's configured serial console. The FAT32 EFI partition uses GPT;
+combined-efi-ufs images instead have a GPT for 4096-byte logical sectors.
+The UFS image uses a matching 4K-sector FAT32 filesystem and at least
+512 MiB for its EFI partition. Select the image matching the destination
+disk's logical sector size.
+
+Qualcomm configuration, source overlays and patches are scoped to armv8's
+6.18 kernel. The shared patch stack is applied before armv8/patches-6.18.
+ARMv7 and the 6.12 testing kernel retain the generic EFI menu. VirtIO disk
+transports remain built-in for booting the generic image without an initramfs.
+
+Inspect a built image and boot Generic with AAVMF firmware under QEMU:
+
+  scripts/armsr-unified-qemu.py IMAGE --output /tmp/armsr-check \
+    --firmware /usr/share/AAVMF
+
+Add --failsafe to boot Generic failsafe, or --check-grub-menus to exercise
+all six entries' GRUB linux/devicetree commands without booting a physical
+board DTB on QEMU virt. QEMU cannot validate Qualcomm hardware peripherals.

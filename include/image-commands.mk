@@ -4,7 +4,7 @@ IMAGE_KERNEL = $(word 1,$^)
 IMAGE_ROOTFS = $(word 2,$^)
 
 define ModelNameLimit16
-$(shell expr substr "$(word 2, $(subst _, ,$(1)))" 1 16)
+$(shell printf %.16s "$(word 2, $(subst _, ,$(1)))")
 endef
 
 define rootfs_align
@@ -27,8 +27,21 @@ define Build/append-kernel
 	dd if=$(IMAGE_KERNEL) >> $@
 endef
 
+define Build/package-kernel-ubifs
+	mkdir $@.kernelubifs
+	cp $@ $@.kernelubifs/kernel
+	$(STAGING_DIR_HOST)/bin/mkfs.ubifs \
+		$(KERNEL_UBIFS_OPTS) \
+		-r $@.kernelubifs $@
+	rm -r $@.kernelubifs
+endef
+
 define Build/append-image
-	dd if=$(BIN_DIR)/$(DEVICE_IMG_PREFIX)-$(1) >> $@
+	cp "$(BIN_DIR)/$(DEVICE_IMG_PREFIX)-$(1)" "$@.stripmeta"
+	fwtool -s /dev/null -t "$@.stripmeta" || :
+	fwtool -i /dev/null -t "$@.stripmeta" || :
+	dd if="$@.stripmeta" >> "$@"
+	rm "$@.stripmeta"
 endef
 
 ifdef IB
@@ -37,8 +50,13 @@ define Build/append-image-stage
 endef
 else
 define Build/append-image-stage
-	dd if=$(BIN_DIR)/$(DEVICE_IMG_PREFIX)-$(1) of=$(STAGING_DIR_IMAGE)/$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))-$(DEVICE_NAME)-$(1)
-	dd if=$(BIN_DIR)/$(DEVICE_IMG_PREFIX)-$(1) >> $@
+	cp "$(BIN_DIR)/$(DEVICE_IMG_PREFIX)-$(1)" "$@.stripmeta"
+	fwtool -s /dev/null -t "$@.stripmeta" || :
+	fwtool -i /dev/null -t "$@.stripmeta" || :
+	mkdir -p "$(STAGING_DIR_IMAGE)"
+	dd if="$@.stripmeta" of="$(STAGING_DIR_IMAGE)/$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))-$(DEVICE_NAME)-$(1)"
+	dd if="$@.stripmeta" >> "$@"
+	rm "$@.stripmeta"
 endef
 endif
 
@@ -72,6 +90,7 @@ metadata_json = \
 
 define Build/append-metadata
 	$(if $(SUPPORTED_DEVICES),-echo $(call metadata_json) | fwtool -I - $@)
+	sha256sum "$@" | cut -d" " -f1 > "$@.sha256sum"
 	[ ! -s "$(BUILD_KEY)" -o ! -s "$(BUILD_KEY).ucert" -o ! -s "$@" ] || { \
 		cp "$(BUILD_KEY).ucert" "$@.ucert" ;\
 		usign -S -m "$@" -s "$(BUILD_KEY)" -x "$@.sig" ;\
@@ -87,10 +106,19 @@ endef
 define Build/append-squashfs-fakeroot-be
 	rm -rf $@.fakefs $@.fakesquashfs
 	mkdir $@.fakefs
-	$(STAGING_DIR_HOST)/bin/mksquashfs-lzma \
+	$(STAGING_DIR_HOST)/bin/mksquashfs3-lzma \
 		$@.fakefs $@.fakesquashfs \
 		-noappend -root-owned -be -nopad -b 65536 \
 		$(if $(SOURCE_DATE_EPOCH),-fixed-time $(SOURCE_DATE_EPOCH))
+	cat $@.fakesquashfs >> $@
+endef
+
+define Build/append-squashfs4-fakeroot
+	rm -rf $@.fakefs $@.fakesquashfs
+	mkdir $@.fakefs
+	$(STAGING_DIR_HOST)/bin/mksquashfs4 \
+		$@.fakefs $@.fakesquashfs \
+		-nopad -noappend -root-owned
 	cat $@.fakesquashfs >> $@
 endef
 
@@ -103,13 +131,25 @@ define Build/append-ubi
 		$(if $(UBOOTENV_IN_UBI),--uboot-env) \
 		$(if $(KERNEL_IN_UBI),--kernel $(IMAGE_KERNEL)) \
 		$(foreach part,$(UBINIZE_PARTS),--part $(part)) \
-		$(IMAGE_ROOTFS) \
+		--rootfs $(IMAGE_ROOTFS) \
 		$@.tmp \
 		-p $(BLOCKSIZE:%k=%KiB) -m $(PAGESIZE) \
 		$(if $(SUBPAGESIZE),-s $(SUBPAGESIZE)) \
 		$(if $(VID_HDR_OFFSET),-O $(VID_HDR_OFFSET)) \
 		$(UBINIZE_OPTS)
 	cat $@.tmp >> $@
+	rm $@.tmp
+endef
+
+define Build/ubinize-kernel
+	cp $@ $@.tmp
+	sh $(TOPDIR)/scripts/ubinize-image.sh \
+		--kernel $@.tmp \
+		$@ \
+		-p $(BLOCKSIZE:%k=%KiB) -m $(PAGESIZE) \
+		$(if $(SUBPAGESIZE),-s $(SUBPAGESIZE)) \
+		$(if $(VID_HDR_OFFSET),-O $(VID_HDR_OFFSET)) \
+		$(UBINIZE_OPTS)
 	rm $@.tmp
 endef
 
@@ -170,9 +210,18 @@ define Build/check-size
 	@imagesize="$$(stat -c%s $@)"; \
 	limitsize="$$(($(subst k,* 1024,$(subst m, * 1024k,$(if $(1),$(1),$(IMAGE_SIZE))))))"; \
 	[ $$limitsize -ge $$imagesize ] || { \
-		echo "WARNING: Image file $@ is too big: $$imagesize > $$limitsize" >&2; \
+		$(call ERROR_MESSAGE,    WARNING: Image file $@ is too big: $$imagesize > $$limitsize); \
 		rm -f $@; \
 	}
+endef
+
+define Build/copy-file
+	cat "$(1)" > "$@"
+endef
+
+define Build/edimax-header
+	$(STAGING_DIR_HOST)/bin/mkedimaximg -i $@ -o $@.new $(1)
+	@mv $@.new $@
 endef
 
 define Build/elecom-product-header
@@ -185,6 +234,19 @@ define Build/elecom-product-header
 		dd if=$(fw); \
 	) > $(fw).new
 	mv $(fw).new $(fw)
+endef
+
+define Build/elecom-wrc-gs-factory
+	$(eval product=$(word 1,$(1)))
+	$(eval version=$(word 2,$(1)))
+	$(eval hash_opt=$(word 3,$(1)))
+	$(MKHASH) md5 $(hash_opt) $@ >> $@
+	( \
+		echo -n "ELECOM $(product) v$(version)" | \
+			dd bs=32 count=1 conv=sync; \
+		dd if=$@; \
+	) > $@.new
+	mv $@.new $@
 endef
 
 define Build/elx-header
@@ -215,7 +277,9 @@ endef
 define Build/initrd_compression
 	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_BZIP2),.bzip2) \
 	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_GZIP),.gzip) \
+	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_LZ4),.lz4) \
 	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_LZMA),.lzma) \
+	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_LZO),.lzo) \
 	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_XZ),.xz) \
 	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_ZSTD),.zstd)
 endef
@@ -223,16 +287,20 @@ endef
 define Build/fit
 	$(TOPDIR)/scripts/mkits.sh \
 		-D $(DEVICE_NAME) -o $@.its -k $@ \
-		-C $(word 1,$(1)) $(if $(word 2,$(1)),\
-		$(if $(DEVICE_DTS_OVERLAY),-d $(KERNEL_BUILD_DIR)/image-$$(basename $(word 2,$(1))),\
-			-d $(word 2,$(1)))) \
+		-C $(word 1,$(1)) \
+		$(if $(word 2,$(1)),\
+			$(if $(findstring 11,$(if $(DEVICE_DTS_OVERLAY),1)$(if $(findstring $(KERNEL_BUILD_DIR)/image-,$(word 2,$(1))),,1)), \
+				-d $(KERNEL_BUILD_DIR)/image-$$(basename $(word 2,$(1))), \
+				-d $(word 2,$(1)))) \
 		$(if $(findstring with-rootfs,$(word 3,$(1))),-r $(IMAGE_ROOTFS)) \
 		$(if $(findstring with-initrd,$(word 3,$(1))), \
 			$(if $(CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE), \
 				-i $(KERNEL_BUILD_DIR)/initrd.cpio$(strip $(call Build/initrd_compression)))) \
 		-a $(KERNEL_LOADADDR) -e $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR)) \
 		$(if $(DEVICE_FDT_NUM),-n $(DEVICE_FDT_NUM)) \
-		$(if $(DEVICE_DTS_OVERLAY),$(foreach dtso,$(DEVICE_DTS_OVERLAY), -O $(dtso):$(KERNEL_BUILD_DIR)/image-$(dtso).dtb)) \
+		$(if $(DEVICE_DTS_DELIMITER),-l $(DEVICE_DTS_DELIMITER)) \
+		$(if $(DEVICE_DTS_LOADADDR),-s $(DEVICE_DTS_LOADADDR)) \
+		$(if $(DEVICE_DTS_OVERLAY),$(foreach dtso,$(DEVICE_DTS_OVERLAY), -O $(dtso):$(KERNEL_BUILD_DIR)/image-$(dtso).dtbo)) \
 		-c $(if $(DEVICE_DTS_CONFIG),$(DEVICE_DTS_CONFIG),"config-1") \
 		-A $(LINUX_KARCH) -v $(LINUX_VERSION)
 	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage $(if $(findstring external,$(word 3,$(1))),\
@@ -240,9 +308,23 @@ define Build/fit
 	@mv $@.new $@
 endef
 
-define Build/gzip
-	gzip -f -9n -c $@ $(1) > $@.new
+define Build/libdeflate-gzip
+	$(STAGING_DIR_HOST)/bin/libdeflate-gzip -f -12 -c $@ $(1) > $@.new
 	@mv $@.new $@
+endef
+
+define Build/gzip
+	$(STAGING_DIR_HOST)/bin/gzip -f -9n -c $@ $(1) > $@.new
+	@mv $@.new $@
+endef
+
+define Build/gzip-filename
+	@mkdir -p $@.tmp
+	@cp $@ $@.tmp/$(word 1,$(1))
+	$(if $(SOURCE_DATE_EPOCH),touch -hcd "@$(SOURCE_DATE_EPOCH)" $@.tmp/$(word 1,$(1)) $(word 2,$(1)))
+	$(STAGING_DIR_HOST)/bin/gzip -f -9 -N -c $@.tmp/$(word 1,$(1)) $(word 2,$(1)) > $@.new
+	@mv $@.new $@
+	@rm -rf $@.tmp
 endef
 
 define Build/install-dtb
@@ -254,6 +336,16 @@ define Build/install-dtb
 		), \
 		install-dtb-$(IMG_PREFIX) \
 	)
+endef
+
+define Build/iptime-crc32
+	$(STAGING_DIR_HOST)/bin/iptime-crc32 $(1) $@ $@.new
+	mv $@.new $@
+endef
+
+define Build/iptime-naspkg
+	$(STAGING_DIR_HOST)/bin/iptime-naspkg $(1) $@ $@.new
+	mv $@.new $@
 endef
 
 define Build/jffs2
@@ -269,6 +361,20 @@ define Build/jffs2
 		$(STAGING_DIR_HOST)/bin/padjffs2 $@.new -J $(patsubst %k,,$(BLOCKSIZE))
 	-rm -rf $(KDIR_TMP)/$(DEVICE_NAME)/jffs2/
 	@mv $@.new $@
+endef
+
+define Build/yaffs-filesystem
+	let \
+		kernel_size="$$(stat -c%s $@)" \
+		kernel_chunks="(kernel_size / 1024) + 1" \
+		filesystem_chunks="kernel_chunks + 3" \
+		filesystem_blocks="(filesystem_chunks / 63) + 1" \
+		filesystem_size="filesystem_blocks * 64 * 1024" \
+		filesystem_size_with_reserve="(filesystem_blocks + 2) * 64 * 1024"; \
+		head -c $$filesystem_size_with_reserve /dev/zero | tr "\000" "\377" > $@.img \
+		&& yafut -d $@.img -w -i $@ -o $(if $(findstring v7,$@),bootimage,kernel) -C 1040 -B 64k -E -P -S $(1) \
+		&& truncate -s $$filesystem_size $@.img \
+		&& mv $@.img $@
 endef
 
 define Build/kernel2minor
@@ -316,6 +422,19 @@ define Build/netgear-dni
 		-r "$(1)" \
 		-i $@ -o $@.new
 	mv $@.new $@
+endef
+
+define Build/netgear-encrypted-factory
+	$(TOPDIR)/scripts/netgear-encrypted-factory.py \
+		--input-file $@ \
+		--output-file $@ \
+		--model $(NETGEAR_ENC_MODEL) \
+		--region $(NETGEAR_ENC_REGION) \
+		--version V1.0.0.0.$(VERSION_DIST).$(firstword $(subst -, ,$(REVISION))) \
+		--encryption-block-size 0x20000 \
+		--openssl-bin "$(STAGING_DIR_HOST)/bin/openssl" \
+		--key 6865392d342b4d212964363d6d7e7765312c7132613364316e26322a5a5e2538 \
+		--iv 4a253169516c38243d6c6d2d3b384145
 endef
 
 define Build/openmesh-image
@@ -370,16 +489,16 @@ define Build/qemu-image
 	fi
 endef
 
-define Build/qsdk-ipq-factory-mmc
+define Build/qsdk-ipq-factory-nand
 	$(TOPDIR)/scripts/mkits-qsdk-ipq-image.sh \
-		$@.its kernel $(IMAGE_KERNEL) rootfs $(IMAGE_ROOTFS)
+		$@.its ubi $@
 	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
 	@mv $@.new $@
 endef
 
-define Build/qsdk-ipq-factory-nand
+define Build/qsdk-ipq-factory-mmc
 	$(TOPDIR)/scripts/mkits-qsdk-ipq-image.sh \
-		$@.its ubi $@
+		$@.its kernel $(IMAGE_KERNEL) rootfs $(IMAGE_ROOTFS)
 	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
 	@mv $@.new $@
 endef
@@ -476,6 +595,7 @@ define Build/tplink-v2-image
 endef
 
 define Build/uImage
+	$(if $(UIMAGE_TIME),SOURCE_DATE_EPOCH="$(UIMAGE_TIME)") \
 	mkimage \
 		-A $(LINUX_KARCH) \
 		-O linux \
@@ -490,18 +610,35 @@ define Build/uImage
 	mv $@.new $@
 endef
 
+define Build/multiImage
+	$(if $(UIMAGE_TIME),SOURCE_DATE_EPOCH="$(UIMAGE_TIME)") \
+	mkimage \
+		-A $(LINUX_KARCH) \
+		-O linux \
+		-T multi \
+		-C $(word 1,$(1)) \
+		-a $(KERNEL_LOADADDR) \
+		-e $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR)) \
+		-n '$(if $(UIMAGE_NAME),$(UIMAGE_NAME),$(call toupper,$(LINUX_KARCH)) $(VERSION_DIST) Linux-$(LINUX_VERSION))' \
+		$(if $(UIMAGE_MAGIC),-M $(UIMAGE_MAGIC)) \
+		-d $@:$(word 2,$(1)):$(word 3,$(1)) \
+		$(wordlist 4,$(words $(1)),$(1)) \
+		$@.new
+	mv $@.new $@
+endef
+
 define Build/xor-image
 	$(STAGING_DIR_HOST)/bin/xorimage -i $@ -o $@.xor $(1)
 	mv $@.xor $@
 endef
 
 define Build/zip
+	rm -rf $@.tmp
 	mkdir $@.tmp
-	mv $@ $@.tmp/$(1)
-
-	zip -j -X \
-		$(if $(SOURCE_DATE_EPOCH),--mtime="$(SOURCE_DATE_EPOCH)") \
-		$@ $@.tmp/$(if $(1),$(1),$@)
+	mv $@ $@.tmp/$(word 1,$(1))
+	TZ=UTC $(STAGING_DIR_HOST)/bin/zip -j -X \
+		$(wordlist 2,$(words $(1)),$(1)) \
+		$@ $@.tmp/$(if $(word 1,$(1)),$(word 1,$(1)),$$(basename $@))
 	rm -rf $@.tmp
 endef
 

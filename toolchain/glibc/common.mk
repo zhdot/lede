@@ -7,15 +7,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=glibc
-PKG_VERSION:=2.34
+PKG_VERSION:=2.38
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=72123e1b56f53f9205bb105f8a62d0869b837b22
-PKG_MIRROR_HASH:=934ec7067d41da0b76b8f29a1cd03b10ba9d98c2f761f7b32f8595e59ac2b428
+PKG_SOURCE_VERSION:=6a52d5cab01ee8d3303f7c0939d6b2618c8a9606
+PKG_MIRROR_HASH:=2f55c40271e064e4fa338d9a04fd258c4c59a6ad198ab4bbfb7782e318db80c2
 PKG_SOURCE_URL:=https://sourceware.org/git/glibc.git
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.zst
+PKG_CPE_ID:=cpe:/a:gnu:glibc
 
 HOST_BUILD_DIR:=$(BUILD_DIR_TOOLCHAIN)/$(PKG_SOURCE_SUBDIR)
 CUR_BUILD_DIR:=$(HOST_BUILD_DIR)-$(VARIANT)
@@ -45,6 +46,7 @@ endif
 # "Optimize i386 syscall inlining for GCC 5"
 GLIBC_CONFIGURE:= \
 	unset LD_LIBRARY_PATH; \
+	MAKE="$(MAKE)" \
 	BUILD_CC="$(HOSTCC)" \
 	$(TARGET_CONFIGURE_OPTS) \
 	CFLAGS="-O2 $(filter-out -Os,$(call qstrip,$(TARGET_CFLAGS)))" \
@@ -60,11 +62,15 @@ GLIBC_CONFIGURE:= \
 		--without-gd \
 		--without-cvs \
 		--enable-add-ons \
+		--enable-crypt \
 		--$(if $(CONFIG_SOFT_FLOAT),without,with)-fp \
 		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_REGULAR),--enable-stack-protector=yes) \
 		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_STRONG),--enable-stack-protector=strong) \
+		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_ALL),--enable-stack-protector=all) \
 		  $(if $(CONFIG_PKG_RELRO_FULL),--enable-bind-now) \
-		--enable-kernel=5.4.0
+		  $(if $(CONFIG_PKG_FORTIFY_SOURCE_1),--enable-fortify-source=1) \
+		  $(if $(CONFIG_PKG_FORTIFY_SOURCE_2),--enable-fortify-source=2) \
+		--enable-kernel=5.15.0
 
 export libc_cv_ssp=no
 export libc_cv_ssp_strong=no
@@ -79,11 +85,6 @@ define Host/SetToolchainInfo
 endef
 
 define Host/Configure
-	[ -f $(HOST_BUILD_DIR)/.autoconf ] || { \
-		cd $(HOST_BUILD_DIR)/; \
-		autoconf --force && \
-		touch $(HOST_BUILD_DIR)/.autoconf; \
-	}
 	mkdir -p $(CUR_BUILD_DIR)
 	( cd $(CUR_BUILD_DIR); rm -f config.cache; \
 		$(GLIBC_CONFIGURE) \

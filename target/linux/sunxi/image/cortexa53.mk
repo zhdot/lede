@@ -3,10 +3,12 @@
 # Copyright (C) 2013-2016 OpenWrt.org
 # Copyright (C) 2016 Yousong Zhou
 
+KERNEL_LOADADDR:=0x40080000
+
 define Device/sun50i
+  $(call Device/FitImageLzma)
   SUNXI_DTS_DIR := allwinner/
   KERNEL_NAME := Image
-  KERNEL := kernel-bin
 endef
 
 define Device/sun50i-a64
@@ -24,10 +26,25 @@ define Device/sun50i-h6
   $(Device/sun50i)
 endef
 
+define Device/sun50i-h616
+  SOC := sun50i-h616
+  $(Device/sun50i)
+endef
+
+define Device/sun50i-h618
+  SOC := sun50i-h618
+  $(Device/sun50i)
+endef
+
+define Device/sun55i-a527
+  SOC := sun55i-a527
+  $(Device/sun50i)
+endef
+
 define Device/friendlyarm_nanopi-neo-plus2
   DEVICE_VENDOR := FriendlyARM
   DEVICE_MODEL := NanoPi NEO Plus2
-  SUPPORTED_DEVICES:=nanopi-neo-plus2
+  SUPPORTED_DEVICES += nanopi-neo-plus2
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += friendlyarm_nanopi-neo-plus2
@@ -35,10 +52,19 @@ TARGET_DEVICES += friendlyarm_nanopi-neo-plus2
 define Device/friendlyarm_nanopi-neo2
   DEVICE_VENDOR := FriendlyARM
   DEVICE_MODEL := NanoPi NEO2
-  SUPPORTED_DEVICES:=nanopi-neo2
+  SUPPORTED_DEVICES += nanopi-neo2
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += friendlyarm_nanopi-neo2
+
+define Device/friendlyarm_nanopi-r1s-h5
+  DEVICE_VENDOR := FriendlyARM
+  DEVICE_MODEL := Nanopi R1S H5
+  DEVICE_PACKAGES := kmod-gpio-button-hotplug kmod-usb-net-rtl8152
+  SUPPORTED_DEVICES += nanopi-r1s-h5
+  $(Device/sun50i-h5)
+endef
+TARGET_DEVICES += friendlyarm_nanopi-r1s-h5
 
 define Device/libretech_all-h3-cc-h5
   DEVICE_VENDOR := Libre Computer
@@ -84,11 +110,18 @@ define Device/pine64_sopine-baseboard
 endef
 TARGET_DEVICES += pine64_sopine-baseboard
 
+define Device/radxa_cubie-a5e
+  DEVICE_VENDOR := Radxa
+  DEVICE_MODEL := Cubie A5E
+  DEVICE_PACKAGES := kmod-aic8800-sdio kmod-nvme wpad-openssl
+  $(Device/sun55i-a527)
+endef
+TARGET_DEVICES += radxa_cubie-a5e
+
 define Device/xunlong_orangepi-one-plus
   $(Device/sun50i-h6)
   DEVICE_VENDOR := Xunlong
   DEVICE_MODEL := Orange Pi One Plus
-  SUNXI_DTS_DIR := allwinner/
 endef
 TARGET_DEVICES += xunlong_orangepi-one-plus
 
@@ -98,6 +131,27 @@ define Device/xunlong_orangepi-pc2
   $(Device/sun50i-h5)
 endef
 TARGET_DEVICES += xunlong_orangepi-pc2
+
+define Device/xunlong_orangepi-zero2
+  DEVICE_VENDOR := Xunlong
+  DEVICE_MODEL := Orange Pi Zero 2
+  $(Device/sun50i-h616)
+endef
+TARGET_DEVICES += xunlong_orangepi-zero2
+
+define Device/xunlong_orangepi-zero2w
+  DEVICE_VENDOR := Xunlong
+  DEVICE_MODEL := Orange Pi Zero 2W
+  $(Device/sun50i-h618)
+endef
+TARGET_DEVICES += xunlong_orangepi-zero2w
+
+define Device/xunlong_orangepi-zero3
+  DEVICE_VENDOR := Xunlong
+  DEVICE_MODEL := Orange Pi Zero 3
+  $(Device/sun50i-h618)
+endef
+TARGET_DEVICES += xunlong_orangepi-zero3
 
 define Device/xunlong_orangepi-zero-plus
   DEVICE_VENDOR := Xunlong
